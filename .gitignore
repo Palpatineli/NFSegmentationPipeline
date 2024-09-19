@@ -1,0 +1,4 @@
+/nf_segmentation_app/model/*
+/nf_segmentation_app/debug/*
+/nf_segmentation_app/bin/*
+/data_folder/*

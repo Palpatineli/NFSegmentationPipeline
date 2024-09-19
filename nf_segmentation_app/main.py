@@ -24,11 +24,14 @@ class NFSegmentationApp(MONAILabelApp):
             configs[name] = c
 
         configs = {k: v for k, v in sorted(configs.items())}
+        self.planner = None  # ToDo: Dropped self.planner
         self.models: Dict[str, TaskConfig] = {}
         for k, v in configs.items():
             logger.info(f"+++ Adding Model: {k} => {v}")
             self.models[k] = eval(f"{v}()")
-            self.models[k].init(k, self.model_dir, conf)  # ToDo: Dropped self.planner
+            self.models[k].init(
+                k, self.model_dir, conf, self.planner
+            )  # ToDo: Dropped self.planner
         logger.info(f"+++ Using Models: {list(self.models.keys())}")
 
         super().__init__(
@@ -36,7 +39,7 @@ class NFSegmentationApp(MONAILabelApp):
             studies=studies,
             conf=conf,
             name=f"MONAILabel - NF Segmentation ({monailabel.__version__})",
-            description="Pipeline for performing neurofibrosis segmentation on T2-weighted WB-MRI scans",
+            description="Pipeline for performing neurofibroma segmentation on T2-weighted WB-MRI scans",
             version=monailabel.__version__,
         )
 
@@ -47,12 +50,16 @@ class NFSegmentationApp(MONAILabelApp):
     def init_infers(self) -> Dict[str, InferTask]:
         infers: Dict[str, InferTask] = {}
 
+        # Initialize inferers for each model configuration
         for n, task_config in self.models.items():
             c = task_config.infer()
             c = c if isinstance(c, dict) else {n: c}
             for k, v in c.items():
                 logger.info(f"+++ Adding Inferer: {k} => {v}")
                 infers[k] = v
+
+        # Initialize pipelines based on existing inferers
+        # ToDo: Implement pipeline initialization based on existing inferers
         return infers
 
     def infer(self, request, datastore=None):
