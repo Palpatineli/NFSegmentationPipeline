@@ -8,9 +8,8 @@ from monai.transforms import (
     CropForegroundd,
     EnsureTyped,
     Activationsd,
-    AsDiscreted,
-    SqueezeDimd,
     ToNumpyd,
+    Lambdad,
 )
 
 from monailabel.tasks.infer.basic_infer import BasicInferTask, CallBackTypes
@@ -59,6 +58,12 @@ class Inferer3DAnisotropicUnet(BasicInferTask):
         self.sw_batch_size = sw_batch_size
         self.load_strict = False
 
+    @property
+    def required_inputs(self):
+        return [
+            "image",
+        ]
+
     def pre_transforms(self, data=None):
         t = [
             LoadImaged(keys="image", reader="ITKReader"),
@@ -86,20 +91,15 @@ class Inferer3DAnisotropicUnet(BasicInferTask):
         return []  # Self-determine from the list of pre-transforms provided
 
     def post_transforms(self, data=None) -> Sequence[Callable]:
+        # Add transform to extract the 1st channel
         t = [
             EnsureTyped(keys="pred", device=data.get("device") if data else None),
             Activationsd(keys="pred", softmax=True),
-            AsDiscreted(keys="pred", argmax=True),
-            SqueezeDimd(keys="pred", dim=0),
+            Lambdad(keys="pred", func=lambda x: x[1]),
             ToNumpyd(keys="pred"),
             Restored(keys="pred", ref_image="image"),
         ]
         return t
 
-    def __call__(self, request) -> Union[Dict, Tuple[str, Dict[str, Any]]]:
-        request["save_label"] = True
-        request["label_tag"] = "final"
-        return super().__call__(request)
-
     def writer(self, data: Dict[str, Any], extension=None, dtype=None) -> Tuple[Any]:
-        return super().writer(data, extension=".nii.gz")
+        return {"proba": data["pred"], "proba_meta_dict": data["pred_meta_dict"]}, {}
