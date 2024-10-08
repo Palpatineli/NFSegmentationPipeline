@@ -267,7 +267,7 @@ class InfererMRSegmentator(BasicInferTask):
         )(data)
         latency_write = time.time() - start
 
-        result_file_name_dict = {"final": result_file_name, "pred": None}
+        result_file_name_dict = {"final": None, "pred": None, "anatomy": result_file_name}
         latency_total = time.time() - begin
         
         logger.info(
