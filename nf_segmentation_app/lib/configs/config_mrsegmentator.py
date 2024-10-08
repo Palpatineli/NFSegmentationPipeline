@@ -48,20 +48,9 @@ class ConfigMRSegmentator(TaskConfig):
         
         # Define labels for the organs to be segmented
         self.labels = {
-            "background": 0, "spleen": 1, "right_kidney": 2, "left_kidney": 3, 
-            "gallbladder": 4, "liver": 5, "stomach": 6, "pancreas": 7, 
-            "right_adrenal_gland": 8, "left_adrenal_gland": 9, "left_lung": 10, 
-            "right_lung": 11, "heart": 12, "aorta": 13, "inferior_vena_cava": 14, 
-            "portal_vein_and_splenic_vein": 15, "left_iliac_artery": 16, 
-            "right_iliac_artery": 17, "left_iliac_vena": 18, "right_iliac_vena": 19, 
-            "esophagus": 20, "small_bowel": 21, "duodenum": 22, "colon": 23, 
-            "urinary_bladder": 24, "spine": 25, "sacrum": 26, "left_hip": 27, 
-            "right_hip": 28, "left_femur": 29, "right_femur": 30, 
-            "left_autochthonous_muscle": 31, "right_autochthonous_muscle": 32, 
-            "left_iliopsoas_muscle": 33, "right_iliopsoas_muscle": 34, 
-            "left_gluteus_maximus": 35, "right_gluteus_maximus": 36, 
-            "left_gluteus_medius": 37, "right_gluteus_medius": 38, 
-            "left_gluteus_minimus": 39, "right_gluteus_minimus": 40
+            "background": 0, "urinary_bladder": 1, "kidneys": 2, "stomach": 3,
+            "liver": 4, "heart": 5, "hips": 6, "femurs": 7, "muscles": 8, "sacrum": 9,
+            "lungs": 10, "spine": 11, "high_risk_zone": 12
         }
         
         # Set key configuration parameters

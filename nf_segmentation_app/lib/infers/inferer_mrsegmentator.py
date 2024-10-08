@@ -16,7 +16,7 @@ from monailabel.tasks.infer.basic_infer import BasicInferTask
 from monailabel.interfaces.tasks.infer_v2 import InferType
 from monailabel.transform.writer import Writer
 from monailabel.transform.post import Restored
-from lib.transforms.transforms import ReorientToOriginal
+from lib.transforms.transforms import ReorientToOriginald, AssembleAnatomyMaskd
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
@@ -37,6 +37,9 @@ class InfererMRSegmentator(BasicInferTask):
         target_spacing: Tuple[float, float, float] = (1.5, 1.5, 1.5),
         orientation: str = "SPL",
         folds: Union[List[int], Tuple[int, ...]] = [0, 1, 2, 3, 4],
+        dilate_structure_size: int = 3, 
+        dilate_iter_spine: int = 5,
+        dilate_iter_lung: int = 7,
         description: str = "Anatomy segmentation using MRSegmentator",
         **kwargs
     ):
@@ -71,6 +74,9 @@ class InfererMRSegmentator(BasicInferTask):
         self.target_spacing = target_spacing
         self.orientation = orientation
         self.folds = folds
+        self.dilate_structure_size = dilate_structure_size
+        self.dilate_iter_spine = dilate_iter_spine
+        self.dilate_iter_lung = dilate_iter_lung
     
     @property
     def required_inputs(self):
@@ -159,7 +165,7 @@ class InfererMRSegmentator(BasicInferTask):
             truncated_ofname=None,
             save_probabilities=False,
         )
-        segmentations = torch.from_numpy(np.expand_dims(segmentations[0], axis=0)).type(torch.float32)
+        segmentations = torch.from_numpy(np.expand_dims(segmentations[0], axis=0)).type(torch.uint8)
 
         # Copy metadata from input to segmentation if MetaTensor
         if isinstance(data["image"], MetaTensor):
@@ -185,7 +191,12 @@ class InfererMRSegmentator(BasicInferTask):
             Sequence[Callable]: A list of postprocessing transformations.
         """
         return [
-            ReorientToOriginal(keys="pred", ref_image="image"),  # Reorient to original orientation
+            AssembleAnatomyMaskd(keys="pred", 
+                                 dilate_structure_size=self.dilate_structure_size, 
+                                 dilate_iter_spine=self.dilate_iter_spine,
+                                 dilate_iter_lung=self.dilate_iter_lung
+                                 ),
+            ReorientToOriginald(keys="pred", ref_image="image"),  # Reorient to original orientation
             ToNumpyd(keys="pred"),  # Convert the prediction to a NumPy array
             Restored(keys="pred", ref_image="image"),  # Restore the spatial orientation
         ]
