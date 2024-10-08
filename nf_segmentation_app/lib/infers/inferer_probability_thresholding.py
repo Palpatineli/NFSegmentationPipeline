@@ -7,7 +7,6 @@ from monai.transforms import LoadImaged, AsDiscreted, Lambdad
 from monailabel.tasks.infer.basic_infer import BasicInferTask
 from monailabel.interfaces.tasks.infer_v2 import InferType
 from monailabel.interfaces.utils.transform import dump_data
-from monai.inferers import Inferer, SlidingWindowInferer
 from monailabel.transform.writer import Writer
 
 # Initialize logger for this module
@@ -84,7 +83,7 @@ class InfererProbabilityThresholding(BasicInferTask):
             
     def inverse_transforms(self, data=None) -> Union[None, Sequence[Callable]]:
         """
-        No inverse transforms are needed for this task.
+        Run all applicable pre-transforms which has inverse method.
         """
         return []
 

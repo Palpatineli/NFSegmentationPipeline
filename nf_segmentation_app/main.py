@@ -111,6 +111,8 @@ class NFSegmentationApp(MONAILabelApp):
                 "Post_processing_low_threshold": components["config_probability_thresholding_low"],
                 "Post_processing_medium_threshold": components["config_probability_thresholding_medium"],
                 "Post_processing_high_threshold": components["config_probability_thresholding_high"],
+                
+                "Segment_anatomies": components["config_mrsegmentator"],
             }
         )
         

@@ -130,7 +130,7 @@ class Inferer3DAnisotropicUnet(BasicInferTask):
 
     def inverse_transforms(self, data=None) -> Union[None, Sequence[Callable]]:
         """
-        No inverse transforms are required for this task.
+        Run all applicable pre-transforms which has inverse method.
         """
         return []
 
