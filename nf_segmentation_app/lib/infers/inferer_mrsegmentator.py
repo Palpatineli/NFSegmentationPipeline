@@ -170,7 +170,7 @@ class InfererMRSegmentator(BasicInferTask):
         # Copy metadata from input to segmentation if MetaTensor
         if isinstance(data["image"], MetaTensor):
             segmentations = MetaTensor(segmentations).copy_meta_from(data["image"], copy_attr=False)
-
+        
         data[self.output_label_key] = segmentations
         return data
     
@@ -197,7 +197,6 @@ class InfererMRSegmentator(BasicInferTask):
                                  dilate_iter_lung=self.dilate_iter_lung
                                  ),
             ReorientToOriginald(keys="pred", ref_image="image"),  # Reorient to original orientation
-            ToNumpyd(keys="pred"),  # Convert the prediction to a NumPy array
             Restored(keys="pred", ref_image="image"),  # Restore the spatial orientation
         ]
 
@@ -247,6 +246,10 @@ class InfererMRSegmentator(BasicInferTask):
         start = time.time()
         data = self.run_post_transforms(data, self.post_transforms(data))
         latency_post = time.time() - start
+        
+        print("RETURNING ANATOMY SEGMENTATION")
+        print(data["pred"].meta)
+        print(data["pred_meta_dict"])
                 
         # Return directly in pipeline mode 
         if data.get("pipeline_mode", False):

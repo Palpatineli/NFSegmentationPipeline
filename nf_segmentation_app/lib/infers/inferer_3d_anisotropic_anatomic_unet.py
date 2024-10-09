@@ -1,5 +1,6 @@
 import logging
 from typing import Callable, Dict, Sequence, Tuple, Union, Any
+import torch
 
 from monai.inferers import Inferer, SlidingWindowInferer
 from monai.transforms import (
@@ -18,6 +19,8 @@ from monai.transforms import (
 from monailabel.tasks.infer.basic_infer import BasicInferTask
 from monailabel.interfaces.tasks.infer_v2 import InferType
 from monailabel.transform.post import Restored
+
+from monai.data import decollate_batch
 
 # Initialize logger for this module
 logger = logging.getLogger(__name__)
@@ -47,7 +50,7 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
             labels=labels,
             dimension=dimension,
             description=description,
-            input_key="image",  # Key for input image data
+            input_key="image_joint",  # Key for input image data
             output_label_key="pred",  # Key for prediction output
             output_json_key="result",  # Key for JSON result output
             load_strict=False,  # Do not enforce strict loading
@@ -61,6 +64,7 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
         self.number_intensity_ch = number_intensity_ch
         self.sw_batch_size = sw_batch_size
         self.number_anatomical_structures = number_anatomical_structures
+        self.path_folds = path
         
         
     @property
@@ -91,7 +95,7 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
                                  b_max=1.0),
             ConcatItemsd(keys=["image", "anatomy"], 
                          name="image_joint",
-                         axis=0),  # Concatenate the image and anatomy data along the channel axis
+                         dim=0),  # Concatenate the image and anatomy data along the channel axis
         ]
         # Cache the transforms if caching is enabled
         self.add_cache_transform(transforms, data)
@@ -142,10 +146,53 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
         ]
     
     def run_inferer(self, data: Dict[str, Any], convert_to_batch=True, device="cuda"):
-        pass
+        inferer = self.inferer(data)
+        logger.info(f"Inferer:: {device} => {inferer.__class__.__name__} => {inferer.__dict__}")
+        
+        
+        # Get the input data
+        inputs = data[self.input_key]
+        inputs = inputs if torch.is_tensor(inputs) else torch.from_numpy(inputs)
+        inputs = inputs[None] if convert_to_batch else inputs
+        inputs = inputs.to(torch.device(device))
+        
+        # Logic for getting predictions from all folds of the model
+        outputs_list = []
+        for i, path_fold in enumerate(self.path_folds):
+            self.path = path_fold
+            network = self._get_network(device, data)
+            
+            with torch.no_grad():
+                outputs = inferer(inputs, network)
+
+            if device.startswith("cuda"):
+                torch.cuda.empty_cache()
+                
+            if convert_to_batch:
+                if isinstance(outputs, dict):
+                    outputs_d = decollate_batch(outputs)
+                    outputs = outputs_d[0]
+                else:
+                    outputs = outputs[0]
+            
+            outputs_list.append(outputs)
+            
+            logger.info(f"Finished inference for fold: {i}")
+        # Only single output for now
+        data[self.output_label_key] = outputs
+            
+            
+            
+            
+        
+        
+        
+        
+        
+        
     
-    def __call__(self, request) -> Union[Dict, Tuple[str, Dict[str, Any]]]:
-        pass
+    # def __call__(self, request) -> Union[Dict, Tuple[str, Dict[str, Any]]]:
+    #     pass
     
     def writer(self, data: Dict[str, Any], extension=None, dtype=None) -> Tuple[Any]:
         """

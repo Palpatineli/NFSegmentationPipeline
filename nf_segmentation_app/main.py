@@ -18,6 +18,7 @@ import lib.configs
 from lib.infers.inferer_3d_anisotropic_unet import Inferer3DAnisotropicUnet
 from lib.infers.inferer_probability_thresholding import InfererProbabilityThresholding
 from lib.infers.inferer_single_stage_pipeline import InfererSingleStagePipeline
+from lib.infers.inferer_multi_stage_pipeline import InfererMultiStagePipeline
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +109,18 @@ class NFSegmentationApp(MONAILabelApp):
                     task_thresholding=components["config_probability_thresholding_medium"],
                     description="Single-Stage Pipeline for neurofibroma segmentation",
                 ),
+                "Segmentation_multi_stage_pipeline": InfererMultiStagePipeline(
+                    task_anatomy_segmentation=components["config_mrsegmentator"],
+                    task_neurofibroma_segmentation=components["config_3d_anisotropic_anatomic_unet"],
+                    task_thresholding=components["config_probability_thresholding_medium"],
+                    description="Multi-Stage Pipeline for neurofibroma segmentation",    
+                ),
                 "Post_processing_low_threshold": components["config_probability_thresholding_low"],
                 "Post_processing_medium_threshold": components["config_probability_thresholding_medium"],
                 "Post_processing_high_threshold": components["config_probability_thresholding_high"],
                 
                 "Segment_anatomies": components["config_mrsegmentator"],
+                
             }
         )
         
