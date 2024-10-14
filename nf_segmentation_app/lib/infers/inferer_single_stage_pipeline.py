@@ -140,7 +140,7 @@ class InfererSingleStagePipeline(BasicInferTask):
         data_1, _, latency_1 = self.segment_nf(request)
         proba = data_1["proba"]
         proba_meta = data_1["proba_meta_dict"]
-
+        
         # Run thresholding task
         data_2, _, latency_2 = self.threshold_nf(request, proba)
         result_mask = data_2["pred"]

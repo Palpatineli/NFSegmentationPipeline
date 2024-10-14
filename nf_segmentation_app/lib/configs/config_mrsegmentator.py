@@ -58,8 +58,7 @@ class ConfigMRSegmentator(TaskConfig):
         self.target_spacing = (1.5, 1.5, 1.5)  # Target voxel spacing for the model
 
         # Instantiate nnUNetPredictor with configuration
-        # self.folds = [0, 1, 2, 3, 4]  # Use all folds for inference
-        self.folds = [0, 1]
+        self.folds = [0, 1, 2, 3, 4]  # Use all folds for inference
         
         self.network = nnUNetPredictor(
             tile_step_size=0.5,

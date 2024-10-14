@@ -236,12 +236,19 @@ class NFSegmentationApp(MONAILabelApp):
 
         # Save the results and return the output
         label_id, output_file_name = None, None
+        output_id_dict = {}
         for name, result_file_name in result_file_name_dict.items():
             if result_file_name:
                 output_id = self.save_output(datastore, image_id, model, result_json, result_file_name, name)
+                output_id_dict[name] = output_id
                 if name == "final":
                     label_id = output_id
                     output_file_name = result_file_name
+        
+        # If no final segmentation file found, return anatomies if available
+        if (label_id is None) and (output_file_name is None) and ("anatomy" in result_file_name_dict.keys()):
+            label_id = output_id_dict["anatomy"]
+            output_file_name = result_file_name_dict["anatomy"]
 
         return {
             "label": label_id,

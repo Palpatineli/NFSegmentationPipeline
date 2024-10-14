@@ -125,9 +125,9 @@ class InfererMultiStagePipeline(BasicInferTask):
         data_2, _, latency_2 = self.segment_neurofibroma(request, anatomy)
         proba = data_2["proba"]
         proba_meta = data_2["proba_meta_dict"]
-        
+                                
         # Run thresholding task
-        data_3, _, latency_3 = self.threshold_nf(request, proba)
+        data_3, _, latency_3 = self.threshold_neurofibroma(request, proba)
         result_mask = data_3["pred"]
         
         # Prepare data for writing results

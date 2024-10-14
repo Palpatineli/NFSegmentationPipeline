@@ -25,7 +25,7 @@ class Config3DAnisotropicAnatomicUnet(TaskConfig):
         
         # Three folds of the model
         self.path = [os.path.join(self.model_dir, 
-                                  f"single_model_pipeline/3d_anisotropic_unet_{i}.pth") for i in range(3)]
+                                  f"multistage_pipeline/3d_anisotropic_anatomic_unet_fold_{i}.pth") for i in range(3)]
         
         # Define labels for segmentation (foreground and background)
         self.labels = {

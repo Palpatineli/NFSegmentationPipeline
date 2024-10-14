@@ -247,9 +247,8 @@ class InfererMRSegmentator(BasicInferTask):
         data = self.run_post_transforms(data, self.post_transforms(data))
         latency_post = time.time() - start
         
-        print("RETURNING ANATOMY SEGMENTATION")
-        print(data["pred"].meta)
-        print(data["pred_meta_dict"])
+        # Update the affine matrix of the output data
+        data["pred"].meta["affine"] = data["pred"].meta["original_affine"]
                 
         # Return directly in pipeline mode 
         if data.get("pipeline_mode", False):

@@ -6,19 +6,24 @@ from monai.inferers import Inferer, SlidingWindowInferer
 from monai.transforms import (
     LoadImaged,
     EnsureChannelFirstd,
+    EnsureChannelFirst,
     Orientationd,
     Spacingd,
     NormalizeIntensityd,
     EnsureTyped,
     Activationsd,
+    Activations,
     ToNumpyd,
     Lambdad,
+    Lambda,
     ScaleIntensityRanged,
-    ConcatItemsd
+    ConcatItemsd,
+    MeanEnsemble
 )
 from monailabel.tasks.infer.basic_infer import BasicInferTask
 from monailabel.interfaces.tasks.infer_v2 import InferType
 from monailabel.transform.post import Restored
+from lib.transforms.transforms import ReorientToOriginald
 
 from monai.data import decollate_batch
 
@@ -124,7 +129,7 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
         """
         Run all applicable pre-transforms which has inverse method.
         """
-        return []
+        return None
     
     def post_transforms(self, data=None) -> Sequence[Callable]:
         """
@@ -138,9 +143,7 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
         """
         # Postprocessing transformations including softmax activation and restoring the original image orientation
         return [
-            EnsureTyped(keys="pred", device=data.get("device") if data else None),
-            Activationsd(keys="pred", softmax=True),  # Apply softmax activation to the prediction
-            Lambdad(keys="pred", func=lambda x: x[1]),  # Extract the first channel (foreground)
+            ReorientToOriginald(keys="pred", ref_image="image"),  # Reorient to original orientation
             ToNumpyd(keys="pred"),  # Convert the prediction to a NumPy array
             Restored(keys="pred", ref_image="image"),  # Restore the spatial orientation
         ]
@@ -159,7 +162,7 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
         # Logic for getting predictions from all folds of the model
         outputs_list = []
         for i, path_fold in enumerate(self.path_folds):
-            self.path = path_fold
+            self.path = [path_fold, ]
             network = self._get_network(device, data)
             
             with torch.no_grad():
@@ -175,25 +178,27 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
                 else:
                     outputs = outputs[0]
             
+            
+            # Apply Softmax activation and get "probability map" for tumors
+            print("INTENSITIES BEFORE")
+            print(outputs.max(), outputs.min())
+            outputs = Activations(softmax=True)(outputs)
+            outputs = Lambda(lambda x: x[1])(outputs)
+            print("INTENSITIES AFTER SOFTMAX")
+            print(outputs.max(), outputs.min())
             outputs_list.append(outputs)
             
             logger.info(f"Finished inference for fold: {i}")
-        # Only single output for now
-        data[self.output_label_key] = outputs
+        # Apply ensembling of predictions by averaging
+        output_ensemble = MeanEnsemble()(outputs_list)
+        print("INTENSITIES AFTER ENSEMBLING")
+        print(outputs.max(), outputs.min())
+        output_ensemble = EnsureChannelFirst()(output_ensemble)
+        data[self.output_label_key] = output_ensemble
+        print(f"Finished ensemble inference")
+        print(f"Prediction shape: {output_ensemble.shape}")
+        return data
             
-            
-            
-            
-        
-        
-        
-        
-        
-        
-    
-    # def __call__(self, request) -> Union[Dict, Tuple[str, Dict[str, Any]]]:
-    #     pass
-    
     def writer(self, data: Dict[str, Any], extension=None, dtype=None) -> Tuple[Any]:
         """
         Write the output data into the required format.

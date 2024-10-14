@@ -96,9 +96,6 @@ class ReorientToOriginald(MapTransform):
                 meta = dict()
                 d[f"{key}_{self.meta_key_postfix}"] = meta
             meta["affine"] = meta_dict.get("original_affine")
-            print("INSODE RESTORED ORIENTATION")
-            print(meta)
-            print(d[key].meta)
         return d
 
 
@@ -140,8 +137,8 @@ class AssembleAnatomyMask(Transform):
         (29, 30): 7, # Merge left and right femurs
         (27, 28): 6, # Merge left and right hips
         12: 5, # Heart
-        (4, 5): 4, # Merge gallbladder and liver
-        6: 3, # Stomach
+        5: 4, # Liver
+        (1, 6): 3, # Stomach
         (2, 3): 2, # Merge left and right kidneys
         24: 1, # Urinary bladder
         })
@@ -244,7 +241,4 @@ class AssembleAnatomyMaskd(MapTransform):
             # Completely new numpy array that needs to be converted into MataTensor
             anatomy_segmentation_mask = torch.from_numpy(self.assembler(d[key])).type(torch.uint8)
             d[key] = MetaTensor(anatomy_segmentation_mask).copy_meta_from(d[key], copy_attr=False)
-            print(key)
-            print("ASSEMBLING - META DATA")
-            print(d[key].meta)
         return d
