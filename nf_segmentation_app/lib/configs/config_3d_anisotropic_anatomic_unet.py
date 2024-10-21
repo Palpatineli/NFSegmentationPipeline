@@ -29,7 +29,7 @@ class Config3DAnisotropicAnatomicUnet(TaskConfig):
         
         # Define labels for segmentation (foreground and background)
         self.labels = {
-            "foreground": 1,
+            "neurofibroma": 1,
             "background": 0,
         }
         

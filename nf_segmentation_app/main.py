@@ -115,9 +115,12 @@ class NFSegmentationApp(MONAILabelApp):
                     task_thresholding=components["config_probability_thresholding_medium"],
                     description="Multi-Stage Pipeline for neurofibroma segmentation",    
                 ),
+                
                 "Post_processing_low_threshold": components["config_probability_thresholding_low"],
                 "Post_processing_medium_threshold": components["config_probability_thresholding_medium"],
                 "Post_processing_high_threshold": components["config_probability_thresholding_high"],
+                
+                "Post_processing_tumor_candidate_classification": components["config_tumor_candidate_classification"],
                 
                 "Segment_anatomies": components["config_mrsegmentator"],
                 

@@ -180,23 +180,15 @@ class Inferer3DAnisotropicAnatomicUnet(BasicInferTask):
             
             
             # Apply Softmax activation and get "probability map" for tumors
-            print("INTENSITIES BEFORE")
-            print(outputs.max(), outputs.min())
             outputs = Activations(softmax=True)(outputs)
             outputs = Lambda(lambda x: x[1])(outputs)
-            print("INTENSITIES AFTER SOFTMAX")
-            print(outputs.max(), outputs.min())
             outputs_list.append(outputs)
             
             logger.info(f"Finished inference for fold: {i}")
         # Apply ensembling of predictions by averaging
         output_ensemble = MeanEnsemble()(outputs_list)
-        print("INTENSITIES AFTER ENSEMBLING")
-        print(outputs.max(), outputs.min())
         output_ensemble = EnsureChannelFirst()(output_ensemble)
         data[self.output_label_key] = output_ensemble
-        print(f"Finished ensemble inference")
-        print(f"Prediction shape: {output_ensemble.shape}")
         return data
             
     def writer(self, data: Dict[str, Any], extension=None, dtype=None) -> Tuple[Any]:

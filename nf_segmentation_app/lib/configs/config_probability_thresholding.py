@@ -32,7 +32,7 @@ class ConfigProbabilityThresholding(TaskConfig):
         # Set 3D segmentation settings
         self.dimension = 3
         self.labels = {
-            "foreground": 1,
+            "neurofibroma": 1,
             "background": 0,
         }
 

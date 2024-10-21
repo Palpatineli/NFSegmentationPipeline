@@ -22,7 +22,7 @@ class InfererProbabilityThresholding(BasicInferTask):
         labels=None,
         dimension=3,
         threshold=0.5,
-        description="3D Anisotropic U-Net for single-stage NF segmentation",
+        description="Thresholding of the probability map",
         **kwargs
     ):
         """
