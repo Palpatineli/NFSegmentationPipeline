@@ -33,7 +33,7 @@ class Inferer3DAnisotropicUnet(BasicInferTask):
         target_spacing=(7.8, 0.625, 0.625),
         overlap=0.25,
         number_intensity_ch=1,
-        sw_batch_size=8,
+        sw_batch_size=4,
         description="3D Anisotropic U-Net for single-stage NF segmentation",
         **kwargs
     ):

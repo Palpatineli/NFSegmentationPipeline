@@ -32,6 +32,7 @@ from monai.transforms import (
 from lib.transforms.transforms import ReorientToOriginald
 
 # Initialize logger for this module
+logging.getLogger('radiomics').setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 
@@ -240,7 +241,8 @@ class InfererTumorCandidateClassification(BasicInferTask):
     
     @staticmethod
     def convert_numpy_to_sitk(data_np, spacing, origin, direction):
-        data_sitk = sitk.GetImageFromArray(data_np)
+        # Need to transpose the numpy array to match SimpleITK's axes order
+        data_sitk = sitk.GetImageFromArray(np.transpose(data_np, (2, 1, 0)))
         data_sitk.SetSpacing(list(spacing))
         data_sitk.SetOrigin(list(origin))
         data_sitk.SetDirection(list(direction))
@@ -265,7 +267,7 @@ class InfererTumorCandidateClassification(BasicInferTask):
         # Get meta data
         affine_matrix = data["image"].affine
         spacing, origin, direction = self.get_meta_from_affine(affine_matrix)
-                
+        self.downsampled_spacing = tuple(self.downsampled_spacing[i] if self.downsampled_spacing[i] > 0 else spacing[i] for i in range(self.dimension))
         # Convert data to numpy
         image_np = torch.squeeze(image_metatensor, dim=0).cpu().numpy()
         anatomy_np = torch.squeeze(anatomy_metatensor, dim=0).cpu().numpy()
@@ -280,13 +282,10 @@ class InfererTumorCandidateClassification(BasicInferTask):
         logger.info(f"Total number of tumor candidates: {raw_num_instances}")
         
         # Dowmsample data to speed up processing
-        zoom_factors = (self.target_spacing[0]/self.downsampled_spacing[0], 
-                        self.target_spacing[1]/self.downsampled_spacing[1], 
-                        self.target_spacing[2]/self.downsampled_spacing[2])
+        # If downsampled spacing along one of axes is not positive, it means that this axis is not downsampled
+        zoom_factors = tuple(spacing[i]/self.downsampled_spacing[i] for i in range(self.dimension))
         raw_instance_np_down = zoom(raw_instance_np, zoom_factors, order=0)
-        image_np_down = zoom(image_np, zoom_factors, order=1)
-        tumor_candidates_sizes = np.bincount(raw_instance_np_down.ravel())[1:]
-        
+        image_np_down = zoom(image_np, zoom_factors, order=1)        
         # Stage 2: Extract radiomic features
         # Load radiomic feature extractor configuration
         logger.info(f"Extracting radiomic features...")
@@ -294,10 +293,11 @@ class InfererTumorCandidateClassification(BasicInferTask):
         
         # Convert Numpy arrays to SimpleITK image, since it is required for radiomic feature extraction
         image_sitk = self.convert_numpy_to_sitk(image_np_down, self.downsampled_spacing, origin, direction)
-        
+                
         # Prepare empty list to store features for each tumor candidate
         features_list = [None] * raw_num_instances
         futures = []
+        tumor_candidates_sizes = []
         
         # Extract radiomic features for each tumor candidate in parallel using a ProcessPoolExecutor
         with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -306,6 +306,7 @@ class InfererTumorCandidateClassification(BasicInferTask):
                 # Get tumor instance mask and size
                 tumor_instance_mask = (raw_instance_np_down == instance_id)
                 tumor_instance_size = np.sum(tumor_instance_mask)
+                tumor_candidates_sizes.append(tumor_instance_size)
                 
                 # Skip tumor instances with size below the minimum or above the maximum threshold
                 if tumor_instance_size > self.size_max_threshold:
@@ -379,7 +380,7 @@ class InfererTumorCandidateClassification(BasicInferTask):
         # Assign prediction to small and large tumor candidates
         tumors_dataframe.loc[tumors_dataframe["size"] >= self.size_max_threshold, "prediction"] = True
         tumors_dataframe.loc[tumors_dataframe["size"] <= self.size_min_threshold, "prediction"] = False
-        
+                
         # Stage 4: Filtering tumor candidates based on classification results
         # Filter the instance mask
         filtered_instance_np = self.filter_instances(raw_instance_np, 

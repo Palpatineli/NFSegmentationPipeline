@@ -46,11 +46,12 @@ class Config3DAnisotropicUnet(TaskConfig):
 
         # Set the dimensionality and key configuration parameters
         self.dimension = 3
+        self.resample_only_in_2d = kwargs.get("resample_only_in_2d", True)
+        self.target_spacing = (7.8, 0.625, 0.625) if not self.resample_only_in_2d else (-1, 0.625, 0.625)
         self.spatial_size = (10, 640, 256)
-        self.target_spacing = (7.8, 0.625, 0.625)
         self.overlap = 0.25
         self.number_intensity_ch = 1
-        self.sw_batch_size = 8
+        self.sw_batch_size = kwargs.get("batch_size", 4)
 
         # Initialize the 3D Anisotropic UNet architecture
         self.network = PlainConvUNet(

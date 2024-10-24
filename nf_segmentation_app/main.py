@@ -15,8 +15,6 @@ from monailabel.interfaces.datastore import Datastore, DefaultLabelTag
 from monailabel.config import settings
 
 import lib.configs
-from lib.infers.inferer_3d_anisotropic_unet import Inferer3DAnisotropicUnet
-from lib.infers.inferer_probability_thresholding import InfererProbabilityThresholding
 from lib.infers.inferer_single_stage_pipeline import InfererSingleStagePipeline
 from lib.infers.inferer_multi_stage_pipeline import InfererMultiStagePipeline
 
@@ -38,6 +36,10 @@ class NFSegmentationApp(MONAILabelApp):
             conf (Dict[str, str]): The configuration dictionary.
         """
         self.model_dir = os.path.join(app_dir, "model")
+        
+        # Get the configuration of the batch size used for inference
+        self.batch_size = int(conf.get("batch_size", "4"))
+        self.resample_only_in_2d = conf.get("resample_only_in_2d", "False").lower() == "true"
 
         # Get all available model configurations
         configs = {}
@@ -66,7 +68,9 @@ class NFSegmentationApp(MONAILabelApp):
             else:
                 logger.info(f"+++ Adding Model: {k} => {v}")
                 self.models[k] = eval(f"{v}()")
-                self.models[k].init(k, self.model_dir, conf, self.planner)
+                self.models[k].init(k, self.model_dir, conf, self.planner, 
+                                    batch_size=self.batch_size, 
+                                    resample_only_in_2d=self.resample_only_in_2d)
         
         logger.info(f"+++ Using Models: {list(self.models.keys())}")
 
@@ -104,25 +108,25 @@ class NFSegmentationApp(MONAILabelApp):
         # Initialize pipelines based on existing inferers
         infers.update(
             {
-                "Segmentation_single_stage_pipeline": InfererSingleStagePipeline(
+                "Single-Stage_NF_Segmentation": InfererSingleStagePipeline(
                     task_segmentation=components["config_3d_anisotropic_unet"],
                     task_thresholding=components["config_probability_thresholding_medium"],
                     description="Single-Stage Pipeline for neurofibroma segmentation",
                 ),
-                "Segmentation_multi_stage_pipeline": InfererMultiStagePipeline(
+                "Multi-Stage_NF_Segmentation_(with_Anatomy)": InfererMultiStagePipeline(
                     task_anatomy_segmentation=components["config_mrsegmentator"],
                     task_neurofibroma_segmentation=components["config_3d_anisotropic_anatomic_unet"],
                     task_thresholding=components["config_probability_thresholding_medium"],
                     description="Multi-Stage Pipeline for neurofibroma segmentation",    
                 ),
                 
-                "Post_processing_low_threshold": components["config_probability_thresholding_low"],
-                "Post_processing_medium_threshold": components["config_probability_thresholding_medium"],
-                "Post_processing_high_threshold": components["config_probability_thresholding_high"],
+                "Post-Processing:_Low_Confidence_Filter_(0.25)": components["config_probability_thresholding_low"],
+                "Post-Processing:_Medium_Confidence_Filter_(0.50)": components["config_probability_thresholding_medium"],
+                "Post-Processing:_High_Confidence_Filter_(0.75)": components["config_probability_thresholding_high"],
                 
-                "Post_processing_tumor_candidate_classification": components["config_tumor_candidate_classification"],
+                "Post-Processing:_Tumor_Candidate_Classification_(Needs_Anatomy)": components["config_tumor_candidate_classification"],
                 
-                "Segment_anatomies": components["config_mrsegmentator"],
+                "Anatomy_Segmentation": components["config_mrsegmentator"],
                 
             }
         )

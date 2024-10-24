@@ -3,3 +3,4 @@
 /nf_segmentation_app/bin/*
 /nf_segmentation_app/logs/*
 /data_folder/*
+**/__pycache__

@@ -52,8 +52,9 @@ class ConfigTumorCandidateClassification(TaskConfig):
         
         # Set geometric settings
         self.dimension = 3
-        self.target_spacing = (0.625, 0.625, 7.8)
-        self.downsampled_spacing= (1.5, 1.5, 7.8)
+        self.resample_only_in_2d = kwargs.get("resample_only_in_2d", True)
+        self.target_spacing = (0.625, 0.625, 7.8) if not self.resample_only_in_2d else (0.625, 0.625, -1)
+        self.downsampled_spacing= (1.5, 1.5, 7.8) if not self.resample_only_in_2d else (1.5, 1.5, -1)
         
         # Set segmentation labels
         self.labels = {
