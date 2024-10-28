@@ -1,16 +1,15 @@
 import logging
+from typing import Callable, Dict, Sequence, Tuple, Union, Any
+from scipy.ndimage import label as perform_connected_components_analysis, center_of_mass, zoom
+from radiomics import featureextractor
+import concurrent.futures
+import SimpleITK as sitk
+from tqdm import tqdm
+import pandas as pd
+import numpy as np
 import time
 import copy
 import torch
-import numpy as np
-import pandas as pd
-import SimpleITK as sitk
-import concurrent.futures
-from tqdm import tqdm
-from scipy.ndimage import label as perform_connected_components_analysis
-from scipy.ndimage import center_of_mass, zoom
-from typing import Callable, Dict, Sequence, Tuple, Union, Any
-from radiomics import featureextractor
 import joblib
 
 from monailabel.tasks.infer.basic_infer import BasicInferTask
@@ -19,21 +18,22 @@ from monailabel.interfaces.utils.transform import dump_data
 from monailabel.transform.writer import Writer
 from monailabel.transform.post import Restored
 from monai.data import MetaTensor
-from monai.transforms import LoadImaged, AsDiscreted, Lambdad
 from monai.transforms import (
     LoadImaged,
+    AsDiscreted,
     EnsureChannelFirstd,
+    NormalizeIntensityd,
     Orientationd,
     Spacingd,
-    NormalizeIntensityd,
     ToNumpyd,
     Lambdad
 )
 from lib.transforms.transforms import ReorientToOriginald
 
 # Initialize logger for this module
-logging.getLogger('radiomics').setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
+# Disable intermediate radiomics notifications
+logging.getLogger('radiomics').setLevel(logging.ERROR)
 
 
 class InfererTumorCandidateClassification(BasicInferTask):
@@ -59,10 +59,9 @@ class InfererTumorCandidateClassification(BasicInferTask):
         **kwargs
     ):
         """
-        An inference task for tumor candidate classification based on radiomics.
-        
-        This class uses connected components analysis, radiomic feature extraction, and a random forest 
-        to identify tumor candidates.
+        Inference task for tumor candidate classification based on radiomics.        
+        This class uses connected components analysis, radiomic feature extraction,
+        and a random forest to identify tumor candidates.
         
         Minimum size thresholds prevents radiomic feature extractor from crushing due to small imuput objects.
         Maximum size thresholds prevents too long computation time of radiomic features. 
@@ -102,6 +101,10 @@ class InfererTumorCandidateClassification(BasicInferTask):
             load_strict=False,
             **kwargs,
         )
+        
+        if model_path is None or radiomic_extractor_config_path is None or radiomic_feature_list_path is None:
+            raise ValueError("model_path, radiomic_extractor_config_path, and radiomic_feature_list_path cannot be None")
+
         self.anatomical_labels = anatomical_labels
         self.model_path = model_path
         self.radiomic_extractor_config_path = radiomic_extractor_config_path
@@ -125,6 +128,15 @@ class InfererTumorCandidateClassification(BasicInferTask):
         return ["image", "anatomy", "proba"]
     
     def pre_transforms(self, data=None):
+        """
+        Define the preprocessing transformations.
+
+        Args:
+            data (dict): Input data dictionary.
+
+        Returns:
+            List[Callable]: Preprocessing transformations.
+        """
         transforms = [
             LoadImaged(keys=["image", "anatomy", "proba"], reader="ITKReader"),
             EnsureChannelFirstd(keys=["image", "anatomy", "proba"]),
@@ -132,11 +144,10 @@ class InfererTumorCandidateClassification(BasicInferTask):
             Lambdad(keys="proba", func=lambda x: x / 255),
             Spacingd(keys=["image", "anatomy", "proba"], 
                      pixdim=self.target_spacing, 
-                     mode=["bilinear", "nearest", "bilinear"]),  # Resample with target spacing
+                     mode=["bilinear", "nearest", "bilinear"]),
             NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
             AsDiscreted(keys="proba", threshold=self.confidence_threshold),
         ]
-        # Cache the transforms if caching is enabled
         self.add_cache_transform(transforms, data)
         return transforms
     
@@ -144,25 +155,37 @@ class InfererTumorCandidateClassification(BasicInferTask):
         return None
     
     def post_transforms(self, data=None) -> Sequence[Callable]:
+        """
+        Define the postprocessing transformations.
+
+        Args:
+            data (dict): Input data dictionary.
+
+        Returns:
+            List[Callable]: Postprocessing transformations.
+        """
         return [
-            ReorientToOriginald(keys="pred", ref_image="image"),  # Reorient to original orientation
-            ToNumpyd(keys="pred"),  # Convert the prediction to a NumPy array
-            Restored(keys="pred", ref_image="image"),  # Restore the spatial orientation
+            ReorientToOriginald(keys="pred", ref_image="image"),
+            ToNumpyd(keys="pred"),
+            Restored(keys="pred", ref_image="image"),
         ]
     
     @staticmethod
-    def find_first_dict_in_list(lst):
+    def _find_first_dict_in_list(lst):
         for item in lst:
             if isinstance(item, dict):
                 return item
         return None  # Return None if no dictionary is found
     
     @staticmethod
-    def fill_with_none(expected_keys):
+    def _fill_with_none(expected_keys):
+        """Return a dictionary with None values for each key."""
         return {key: None for key in expected_keys}
     
     @staticmethod
-    def find_exteme_3d_points(anatomy_mask, label):
+    def _find_exteme_3d_points(anatomy_mask, label):
+        """Find the minimum and maximum points of 
+        a specific anatomical structure in an anatomy mask."""
         selected_anatomy_mask = (anatomy_mask == label)
         indices = np.argwhere(selected_anatomy_mask)
         if len(indices) == 0:
@@ -179,7 +202,9 @@ class InfererTumorCandidateClassification(BasicInferTask):
         return extreme_points
     
     @staticmethod
-    def define_anatomical_region(y_coord, boundaries):
+    def _define_anatomical_region(y_coord, boundaries):
+        """Define the anatomical region based on y-coordinate according
+        to anatomical landmarks."""
         # Aligned with the order of a: "Head", "Chest", "Abdomen", "Legs"
         if y_coord < boundaries['abdomen_start']:
             return 3  # Legs
@@ -190,11 +215,12 @@ class InfererTumorCandidateClassification(BasicInferTask):
         else:
             return 0  # Head
         
-    def define_tumor_localization(self, anatomy_np, raw_semantic_np, raw_instance_np, raw_num_instances):
+    def _define_tumor_localization(self, anatomy_np, raw_semantic_np, raw_instance_np, raw_num_instances):
+        """Define tumor localization based on anatomical regions."""
         # Get anatomical landmarks
         anatomical_landmarks = {
-            "lungs": self.find_exteme_3d_points(anatomy_np, self.anatomical_labels["lungs"]),
-            "hips": self.find_exteme_3d_points(anatomy_np, self.anatomical_labels["hips"])
+            "lungs": self._find_exteme_3d_points(anatomy_np, self.anatomical_labels["lungs"]),
+            "hips": self._find_exteme_3d_points(anatomy_np, self.anatomical_labels["hips"])
         } 
         anatomical_regions_boundaries = {
             "head_start": anatomical_landmarks["lungs"]["axis_1_max"][1],
@@ -207,40 +233,24 @@ class InfererTumorCandidateClassification(BasicInferTask):
             center_of_mass(raw_semantic_np, raw_instance_np, range(1, raw_num_instances + 1)))
         
         anatomical_regions = [
-            self.define_anatomical_region(center[1], anatomical_regions_boundaries) 
+            self._define_anatomical_region(center[1], anatomical_regions_boundaries) 
             for center in tumor_candidates_centers
         ]
         return {"anatomical_region": np.array(anatomical_regions)}
     
-    
     @staticmethod
-    def get_meta_from_affine(affine_matrix):
-        """
-        Extract spacing, origin, and direction from affine matrix.
-
-        Args:
-            affine_matrix (np.ndarray): Affine matrix of the image.
-
-        Returns:
-            Tuple: Spacing, origin, and direction information.
-        """
+    def _get_meta_from_affine(affine_matrix):
+        """Extract spacing, origin, and direction from affine matrix."""
         direction_matrix = affine_matrix[:3, :3]
         spacing = np.linalg.norm(direction_matrix, axis=0)
         origin = affine_matrix[:3, 3]
         direction = (direction_matrix / spacing).flatten()
         return spacing, origin.numpy(), direction.numpy() 
     
-    
-    def extract_features_for_tumor_instance(self, image_sitk, tumor_instance_mask_sitk, extractor):
-        tumor_instance_features = extractor.execute(image_sitk, tumor_instance_mask_sitk) # Requires SimpleITK
-        features_dict = {
-            key: tumor_instance_features[key] for key in tumor_instance_features.keys() 
-            if key.startswith('original') or key.startswith('wavelet')
-            }             
-        return features_dict
-    
     @staticmethod
-    def convert_numpy_to_sitk(data_np, spacing, origin, direction):
+    def _convert_numpy_to_sitk(data_np, spacing, origin, direction):
+        """Convert numpy array to SimpleITK image with given spacing, origin, and direction
+        to process data with PyRadiomics later."""
         # Need to transpose the numpy array to match SimpleITK's axes order
         data_sitk = sitk.GetImageFromArray(np.transpose(data_np, (2, 1, 0)))
         data_sitk.SetSpacing(list(spacing))
@@ -248,147 +258,170 @@ class InfererTumorCandidateClassification(BasicInferTask):
         data_sitk.SetDirection(list(direction))
         return data_sitk
     
+    def _downsample_data(self, image_np, raw_instance_np, spacing):
+        """Downsample the input data to reduce the time of radiomic features calculation."""
+        zoom_factors = tuple(spacing[i] / self.downsampled_spacing[i] for i in range(self.dimension))
+        raw_instance_np_down = zoom(raw_instance_np, zoom_factors, order=0)
+        image_np_down = zoom(image_np, zoom_factors, order=1)
+        return image_np_down, raw_instance_np_down
+    
+    def _extract_features_for_tumor_instance(self, image_sitk, tumor_instance_mask_sitk, extractor):
+        """Call the Pyradiomics feature extractor on the tumor candidate instance."""
+        tumor_instance_features = extractor.execute(image_sitk, tumor_instance_mask_sitk) # Requires SimpleITK
+        features_dict = {
+            key: tumor_instance_features[key] for key in tumor_instance_features.keys() 
+            if key.startswith('original') or key.startswith('wavelet')
+            }             
+        return features_dict
+    
+    # Helper function to extract radiomic features for each tumor candidate
+    def _extract_radiomic_features(self, raw_instance_np_down, image_np_down, extractor, origin, direction, raw_num_instances):
+        """Iterate over each tumor candidate and extract radiomic features."""
+        features_list = [None] * raw_num_instances
+        futures = []
+        tumor_candidates_sizes = []
+
+        image_sitk = self._convert_numpy_to_sitk(image_np_down, self.downsampled_spacing, origin, direction)
+
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for instance_id in range(1, raw_num_instances + 1):
+                tumor_instance_mask = (raw_instance_np_down == instance_id)
+                tumor_instance_size = np.sum(tumor_instance_mask)
+                tumor_candidates_sizes.append(tumor_instance_size)
+
+                if tumor_instance_size > self.size_max_threshold:
+                    features_list[instance_id - 1] = True
+                    continue
+
+                if tumor_instance_size < self.size_min_threshold:
+                    features_list[instance_id - 1] = False
+                    continue
+
+                tumor_instance_mask_sitk = self._convert_numpy_to_sitk(tumor_instance_mask.astype(np.uint8), 
+                                                                      self.downsampled_spacing, origin, direction)
+                futures.append((instance_id, executor.submit(self._extract_features_for_tumor_instance, 
+                                                             image_sitk, tumor_instance_mask_sitk, extractor)))
+
+        for instance_id, future in tqdm(futures, total=len(futures)):
+            features_list[instance_id - 1] = future.result()
+
+        return features_list, tumor_candidates_sizes
+    
+    def _create_tumors_dataframe(self, tumor_candidates_localization, features_list, tumor_candidates_sizes):
+        """Create a pandas DataFrame with tumor candidates metadata and radiomic features."""
+        expected_keys = self._find_first_dict_in_list(features_list).keys()
+        features_list = [
+            features if isinstance(features, dict) else self._fill_with_none(expected_keys) 
+            for features in features_list
+        ]
+        tumors_meta_dict = {
+            **tumor_candidates_localization,
+            "size": tumor_candidates_sizes,
+        }
+        return pd.concat([pd.DataFrame(tumors_meta_dict), pd.DataFrame(features_list)], axis=1), expected_keys
+    
+    def _classify_tumors(self, tumors_dataframe, expected_keys):
+        """Classify tumors based on their radiomic features and anatomical region."""
+        for anatomical_idx, anatomical_region in enumerate(self.anatomical_regions):
+            logger.info(f"Processing anatomical region: {anatomical_region}...")
+
+            tumors_regional_dataframe = tumors_dataframe[
+                tumors_dataframe["anatomical_region"] == anatomical_idx].dropna(subset=expected_keys)
+
+            if len(tumors_regional_dataframe) == 0:
+                continue
+
+            random_forest_classifier = joblib.load(self.model_path[anatomical_idx])
+            features_to_use = joblib.load(self.radiomic_feature_list_path[anatomical_idx])
+
+            tumors_regional_dataframe["probability"] = random_forest_classifier.predict_proba(
+                tumors_regional_dataframe[features_to_use])[:, 1]
+
+            tumors_regional_dataframe["prediction"] = tumors_regional_dataframe["probability"] > self.classification_threshold
+            tumors_dataframe.loc[tumors_regional_dataframe.index, "prediction"] = tumors_regional_dataframe["prediction"]
+
+        # Assign predictions for small and large tumors
+        # Large tumor candidates are considered as True Positives
+        tumors_dataframe.loc[tumors_dataframe["size"] >= self.size_max_threshold, "prediction"] = True 
+        # Small tumor candidates are considered as False Positives
+        tumors_dataframe.loc[tumors_dataframe["size"] <= self.size_min_threshold, "prediction"] = False
+    
     @staticmethod
-    def filter_instances(instance_mask, predictions):
+    def _filter_instances(instance_mask, predictions):
+        """Filter instances based on their predictions."""
         filtered_mask = np.zeros_like(instance_mask)
         for idx, prediction in enumerate(predictions):
             if prediction:
                 filtered_mask[instance_mask == idx+1] = 1
         return filtered_mask
+    
+    def _prepare_output(self, filtered_instance_np, image_metatensor):
+        """Prepare the output with filtered tumor candidates."""
+        filtered_instance_np = torch.unsqueeze(torch.from_numpy(filtered_instance_np).type(torch.uint8), dim=0)
+        return MetaTensor(filtered_instance_np).copy_meta_from(image_metatensor, copy_attr=False)
+
         
     def run_inferer(self, data: Dict[str, Any], convert_to_batch=True, device="cuda"):
+        """
+        Execute the tumor candidate classification inference task.
+        """
         logger.info(f"Running Tumor Candidate Classification...")
         
         # Stage 0. Get the data
+        logger.info(f"Stage 0: Getting the data...")
         image_metatensor = data["image"]
         anatomy_metatensor = data["anatomy"]
         raw_semantic_metatensor = data["proba"]
         
-        # Get meta data
-        affine_matrix = data["image"].affine
-        spacing, origin, direction = self.get_meta_from_affine(affine_matrix)
-        self.downsampled_spacing = tuple(self.downsampled_spacing[i] if self.downsampled_spacing[i] > 0 else spacing[i] for i in range(self.dimension))
+        # Get meta data from affine
+        affine_matrix = image_metatensor.affine
+        spacing, origin, direction = self._get_meta_from_affine(affine_matrix)
+        
+         # Adjust downsampled spacing if needed
+         # If downsampled spacing along one of axes is not positive, 
+         # it means that this axis is not downsampled
+        self.downsampled_spacing = tuple(
+            self.downsampled_spacing[i] if self.downsampled_spacing[i] > 0 else spacing[i] for i in range(self.dimension)
+            )
+        
         # Convert data to numpy
         image_np = torch.squeeze(image_metatensor, dim=0).cpu().numpy()
         anatomy_np = torch.squeeze(anatomy_metatensor, dim=0).cpu().numpy()
         raw_semantic_np = torch.squeeze(raw_semantic_metatensor, dim=0).cpu().numpy().astype(np.uint8)
         
         # Stage 1: Get tumor candidates
-        # Perform connected components analysis
-        logger.info(f"Performing connected components analysis...")
+        logger.info(f"Stage 1: Getting tumor candidates...")
         raw_instance_np, raw_num_instances = perform_connected_components_analysis(raw_semantic_np)
-        tumor_candidates_localization = self.define_tumor_localization(
+        tumor_candidates_localization = self._define_tumor_localization(
             anatomy_np, raw_semantic_np, raw_instance_np, raw_num_instances) 
         logger.info(f"Total number of tumor candidates: {raw_num_instances}")
         
         # Dowmsample data to speed up processing
-        # If downsampled spacing along one of axes is not positive, it means that this axis is not downsampled
-        zoom_factors = tuple(spacing[i]/self.downsampled_spacing[i] for i in range(self.dimension))
-        raw_instance_np_down = zoom(raw_instance_np, zoom_factors, order=0)
-        image_np_down = zoom(image_np, zoom_factors, order=1)        
+        image_np_down, raw_instance_np_down = self._downsample_data(image_np, raw_instance_np, spacing)        
+        
         # Stage 2: Extract radiomic features
-        # Load radiomic feature extractor configuration
-        logger.info(f"Extracting radiomic features...")
+        logger.info(f"Stage 2: Extracting radiomic features...")
         extractor = featureextractor.RadiomicsFeatureExtractor(self.radiomic_extractor_config_path)
-        
-        # Convert Numpy arrays to SimpleITK image, since it is required for radiomic feature extraction
-        image_sitk = self.convert_numpy_to_sitk(image_np_down, self.downsampled_spacing, origin, direction)
-                
-        # Prepare empty list to store features for each tumor candidate
-        features_list = [None] * raw_num_instances
-        futures = []
-        tumor_candidates_sizes = []
-        
-        # Extract radiomic features for each tumor candidate in parallel using a ProcessPoolExecutor
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            for instance_id in range(1, raw_num_instances + 1):
-                
-                # Get tumor instance mask and size
-                tumor_instance_mask = (raw_instance_np_down == instance_id)
-                tumor_instance_size = np.sum(tumor_instance_mask)
-                tumor_candidates_sizes.append(tumor_instance_size)
-                
-                # Skip tumor instances with size below the minimum or above the maximum threshold
-                if tumor_instance_size > self.size_max_threshold:
-                    features_list[instance_id - 1] = True
-                    continue
-                
-                if tumor_instance_size < self.size_min_threshold:
-                    features_list[instance_id - 1] = False
-                    continue
-                
-                # Convert tumor instance mask to SimpleITK image and set metadata, 
-                # since it is required for radiomic feature extraction
-                tumor_instance_mask_sitk = self.convert_numpy_to_sitk(tumor_instance_mask.astype(np.uint8), 
-                                                                      self.downsampled_spacing, origin, direction)
-                
-                futures.append((instance_id, 
-                        executor.submit(self.extract_features_for_tumor_instance, 
-                                        image_sitk,
-                                        tumor_instance_mask_sitk,
-                                        extractor)))
-        
-        for instance_id, future in tqdm(futures, total=len(futures)):
-            features_list[instance_id - 1] = future.result()
-                
-        # Form the final feature list        
-        expected_keys = self.find_first_dict_in_list(features_list).keys()
-        features_list = [
-            features if isinstance(features, dict) else self.fill_with_none(expected_keys) 
-            for features in features_list 
-            ]
-                
-        # Form a dataframe describing all tumor candidates
-        tumors_meta_dict = {
-            **tumor_candidates_localization,  
-            "size": tumor_candidates_sizes,
-        }
-        tumors_dataframe = pd.concat([pd.DataFrame(tumors_meta_dict), pd.DataFrame(features_list)], axis=1)
-        
+        features_list, tumor_candidates_sizes = self._extract_radiomic_features(
+            raw_instance_np_down, image_np_down, extractor, origin, direction, raw_num_instances
+        )
         logger.info(f"Finished radiomic features extraction...")
                 
         # Stage 3: Classify tumor candidates
-        # Iterate over the body parts
-        logger.info(f"Classifying tumor candidates...")
-        for anatomical_idx, anatomical_region in enumerate(self.anatomical_regions):
-            logger.info(f"Processing anatomical region: {anatomical_region}...")
-            
-            # Extract features for the current body part
-            tumors_regional_dataframe = tumors_dataframe[
-                tumors_dataframe["anatomical_region"] == anatomical_idx].dropna(subset=expected_keys)
-            
-            # Check if there are tumor candidates in the current body region
-            if len(tumors_regional_dataframe) == 0:
-                continue
-            
-            # Load respective model and list of features
-            random_forest_classifier = joblib.load(self.model_path[anatomical_idx])
-            features_to_use = joblib.load(self.radiomic_feature_list_path[anatomical_idx])
-            
-            # Predict probability with a random forest
-            tumors_regional_dataframe["probability"] = random_forest_classifier.predict_proba(
-                tumors_regional_dataframe[features_to_use])[:, 1]
-                        
-            tumors_regional_dataframe["prediction"] = False
-            tumors_regional_dataframe.loc[
-                tumors_regional_dataframe["probability"] > self.classification_threshold, "prediction"] = True
-            
-            # Insert the predictions into the main dataframe
-            tumors_dataframe.loc[
-                tumors_regional_dataframe.index, "prediction"] = tumors_regional_dataframe.loc[:, "prediction"]
-         
-        # Assign prediction to small and large tumor candidates
-        tumors_dataframe.loc[tumors_dataframe["size"] >= self.size_max_threshold, "prediction"] = True
-        tumors_dataframe.loc[tumors_dataframe["size"] <= self.size_min_threshold, "prediction"] = False
-                
+        logger.info(f"Stage 3: Classifying tumor candidates...")
+        tumors_dataframe, expected_keys = self._create_tumors_dataframe(
+            tumor_candidates_localization, features_list, tumor_candidates_sizes
+        )
+        self._classify_tumors(tumors_dataframe, expected_keys)
+        logger.info(f"Finished tumor candidate classification...")
+           
         # Stage 4: Filtering tumor candidates based on classification results
-        # Filter the instance mask
-        filtered_instance_np = self.filter_instances(raw_instance_np, 
+        logger.info(f"Stage 4: Filtering the segmentation mask and forming an output...")
+        filtered_instance_np = self._filter_instances(raw_instance_np, 
                                                      tumors_dataframe["prediction"].astype(np.uint8))
         
         # Form an output image
-        filtered_instance_np = torch.unsqueeze(
-            torch.from_numpy(filtered_instance_np).type(torch.uint8), dim=0)
+        filtered_instance_np = torch.unsqueeze(torch.from_numpy(filtered_instance_np).type(torch.uint8), dim=0)
         filtered_instance_metatensor = MetaTensor(filtered_instance_np).copy_meta_from(image_metatensor, copy_attr=False)
         
         # Perform required data management operations

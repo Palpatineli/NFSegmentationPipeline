@@ -5,10 +5,9 @@ from monailabel.interfaces.config import TaskConfig
 from monailabel.interfaces.tasks.infer_v2 import InferTask, InferType
 from monailabel.interfaces.tasks.train import TrainTask
 from monailabel.utils.others.generic import strtobool
-
-from lib.infers.inferer_mrsegmentator import InfererMRSegmentator
-from mrsegmentator import config, utils
+from mrsegmentator import config
 from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+from lib.infers.inferer_mrsegmentator import InfererMRSegmentator
 
 # Disable nnUNet path warnings from mrsegmentator config
 config.disable_nnunet_path_warnings()
@@ -18,13 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigMRSegmentator(TaskConfig):
-    """
-    Configuration class for MRSegmentator using nnUNet architecture for multi-organ segmentation.
-    """
-
-    def init(
-        self, name: str, model_dir: str, conf: Dict[str, str], planner: Any, **kwargs
-    ):
+    def init(self, name: str, model_dir: str, conf: Dict[str, str], planner: Any, **kwargs):
         """
         Initialize the configuration for MRSegmentator.
 
@@ -45,7 +38,6 @@ class ConfigMRSegmentator(TaskConfig):
         config.setup_mrseg()
         self.path = config.get_weights_dir()
         
-        
         # Define labels for the organs to be segmented
         self.labels = {
             "background": 0, "urinary_bladder": 1, "kidneys": 2, "stomach": 3,
@@ -59,8 +51,18 @@ class ConfigMRSegmentator(TaskConfig):
 
         # Instantiate nnUNetPredictor with configuration
         self.folds = [0, 1, 2, 3, 4]  # Use all folds for inference
-        
-        self.network = nnUNetPredictor(
+        self.network = self._initialize_predictor()
+        self.checkpoint_file_name = kwargs.get("checkpoint_file_name", "checkpoint_final.pth")
+    
+    def _initialize_predictor(self) -> nnUNetPredictor:
+        """
+        Initialize the nnUNetPredictor for inference.
+
+        Returns:
+            nnUNetPredictor: The initialized nnUNet predictor.
+        """
+        logger.info("Initializing nnUNetPredictor for MRSegmentator.")
+        return nnUNetPredictor(
             tile_step_size=0.5,
             use_gaussian=True,
             use_mirroring=True,
@@ -77,9 +79,11 @@ class ConfigMRSegmentator(TaskConfig):
         Returns:
             Union[InferTask, Dict[str, InferTask]]: The inference task for segmentation.
         """
+        logger.info("Creating inference task for MRSegmentator.")
         return {
             self.name: InfererMRSegmentator(
                 path=self.path,
+                checkpoint_file_name=self.checkpoint_file_name,
                 network=self.network,
                 labels=self.labels,
                 preload=strtobool(self.conf.get("preload", "false")),
@@ -92,6 +96,10 @@ class ConfigMRSegmentator(TaskConfig):
 
     def trainer(self) -> Optional[TrainTask]:
         """
-        Since training is not required for this configuration, it returns None.
+        Return the trainer task. Since training is not required for this configuration, returns None.
+
+        Returns:
+            Optional[TrainTask]: Trainer task or None if training is not required.
         """
+        logger.info("No training task required for this configuration.")
         return None

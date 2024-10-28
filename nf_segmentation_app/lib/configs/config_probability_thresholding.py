@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigProbabilityThresholding(TaskConfig):
-    def init(
-        self, name: str, model_dir: str, conf: Dict[str, str], planner: Any, **kwargs
-    ):
+    def init(self, name: str, model_dir: str, conf: Dict[str, str], planner: Any, **kwargs):
         """
         Initialize the configuration for probability thresholding.
 
@@ -26,19 +24,19 @@ class ConfigProbabilityThresholding(TaskConfig):
         """
         super().init(name, model_dir, conf, planner, **kwargs)
         
-        # Set default threshold, and allow overriding via kwargs
+        # Epistemic uncertainty settings (disabled by default)
+        self.epistemic_enabled = None
+        self.epistemic_samples = None
+        
+        # Set the probability threshold, with a default value of 0.5
         self.threshold = kwargs.get('threshold', 0.5)
         
-        # Set 3D segmentation settings
+        # Set configuration parameters
         self.dimension = 3
         self.labels = {
             "neurofibroma": 1,
             "background": 0,
         }
-
-        # The inference task does not use an AI network or epistemic uncertainty
-        self.epistemic_enabled = None
-        self.epistemic_samples = None
         self.path = self.model_dir
         self.network = None  # No network since this is a threshold-based approach
 
@@ -70,5 +68,9 @@ class ConfigProbabilityThresholding(TaskConfig):
     def trainer(self) -> Optional[TrainTask]:
         """
         Since the task does not involve training, this function returns None.
+
+        Returns:
+            Optional[TrainTask]: None, as no training is required for probability thresholding.
         """
+        logger.info("No training task required for probability thresholding.")
         return None

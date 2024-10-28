@@ -1,16 +1,16 @@
 import logging
 from typing import Optional, Sequence, Union, Mapping, Hashable
-
+from collections import OrderedDict
+from scipy.ndimage import binary_dilation
 import nibabel as nib
 import numpy as np
 import torch
+
 from monai.config import KeysCollection
 from monai.data import MetaTensor
 from monai.transforms import MapTransform, Orientation, Transform
 from monai.utils import InterpolateMode, ensure_tuple_rep, TransformBackends
 from monai.config.type_definitions import NdarrayOrTensor
-from collections import OrderedDict
-from scipy.ndimage import binary_dilation
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ class ReorientToOriginald(MapTransform):
 
     def __call__(self, data):
         """
-        Reorient the image to its original orientation using the affine transformation stored
-        in the reference image's metadata.
+        Reorient the image to its original orientation using 
+        the affine transformation stored in the reference image's metadata.
 
         Args:
             data (dict): A dictionary containing the image and metadata.
@@ -73,7 +73,7 @@ class ReorientToOriginald(MapTransform):
         )
 
         # Loop through each key (image) to apply the inverse transformation
-        for idx, key in enumerate(self.keys):
+        for _, key in enumerate(self.keys):
             result = d[key]
             
             # Retrieve the original affine matrix for the inverse transformation
@@ -167,10 +167,14 @@ class AssembleAnatomyMask(Transform):
             NdarrayOrTensor: The assembled and processed output mask.
         """
         if not isinstance(raw_mask, (np.ndarray, torch.Tensor)):
-            raise NotImplementedError(f"{self.__class__} can not handle data of type {type(img)}.")
+            raise NotImplementedError(f"{self.__class__} can not handle data of type {type(raw_mask)}.")
         
         if self.has_channel:
             raw_mask = raw_mask[0]  # Assuming the first channel is the desired mask
+            
+        valid_labels = set(self.MRSEGMENTATOR_LABELS.values())
+        if not np.isin(raw_mask, list(valid_labels)).all():
+            raise ValueError("Input mask contains labels not defined in MRSEGMENTATOR_LABELS.")
         
         output_mask = np.zeros_like(raw_mask)
         

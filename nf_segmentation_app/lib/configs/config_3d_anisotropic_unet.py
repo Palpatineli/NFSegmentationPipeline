@@ -14,9 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class Config3DAnisotropicUnet(TaskConfig):
-    def init(
-        self, name: str, model_dir: str, conf: Dict[str, str], planner: Any, **kwargs
-    ):
+    def init(self, name: str, model_dir: str, conf: Dict[str, str], planner: Any, **kwargs):
         """
         Initialize the configuration for the 3D Anisotropic UNet model.
 
@@ -34,9 +32,7 @@ class Config3DAnisotropicUnet(TaskConfig):
         self.epistemic_samples = None
 
         # Set the path to the model file
-        self.path = os.path.join(
-            self.model_dir, "single_model_pipeline/3d_anisotropic_unet.pth"
-        )
+        self.path = os.path.join(self.model_dir, "single_model_pipeline/3d_anisotropic_unet.pth")
 
         # Define labels for segmentation (foreground and background)
         self.labels = {
@@ -53,8 +49,18 @@ class Config3DAnisotropicUnet(TaskConfig):
         self.number_intensity_ch = 1
         self.sw_batch_size = kwargs.get("batch_size", 4)
 
-        # Initialize the 3D Anisotropic UNet architecture
-        self.network = PlainConvUNet(
+        # Initialize the network
+        self.network = self._initialize_network()
+    
+    def _initialize_network(self) -> torch.nn.Module:
+        """
+        Initialize the 3D Anisotropic UNet architecture.
+
+        Returns:
+            torch.nn.Module: The initialized network architecture.
+        """
+        logger.info("Initializing 3D Anisotropic UNet architecture.")
+        return PlainConvUNet(
             num_classes=2,
             input_channels=1,
             n_stages=7,
@@ -93,6 +99,12 @@ class Config3DAnisotropicUnet(TaskConfig):
         Returns:
             Union[InferTask, Dict[str, InferTask]]: The inference task for the model.
         """
+        logger.info("Creating inference task.")
+        
+        # Check if model files exist
+        if not os.path.exists(self.path):
+            raise FileNotFoundError(f"Missing model file at {', '.join(self.path)}")
+        
         return {
             self.name: Inferer3DAnisotropicUnet(
                 path=self.path,
@@ -111,6 +123,10 @@ class Config3DAnisotropicUnet(TaskConfig):
 
     def trainer(self) -> Optional[TrainTask]:
         """
-        Since training is not required for this configuration, it returns None.
+        Return the trainer task. Since training is not required for this configuration, returns None.
+
+        Returns:
+            Optional[TrainTask]: Trainer task or None if training is not required.
         """
+        logger.info("No training task required for this configuration.")
         return None

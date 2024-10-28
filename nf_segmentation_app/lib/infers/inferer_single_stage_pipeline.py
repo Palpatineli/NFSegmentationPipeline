@@ -89,7 +89,7 @@ class InfererSingleStagePipeline(BasicInferTask):
             latencies[key] += result_meta.get("latencies", {}).get(key, 0)
         return latencies
 
-    def segment_nf(self, request):
+    def segment_neurofibroma(self, request):
         """
         Execute the segmentation task.
 
@@ -104,7 +104,7 @@ class InfererSingleStagePipeline(BasicInferTask):
         data, meta = self.task_segmentation(req)
         return data, meta, self._latencies(meta)
 
-    def threshold_nf(self, request, proba):
+    def threshold_neurofibroma(self, request, proba):
         """
         Execute the thresholding task on the probability map.
 
@@ -137,12 +137,12 @@ class InfererSingleStagePipeline(BasicInferTask):
         request["device"] = name_to_device(request.get("device", "cuda"))
 
         # Run segmentation task
-        data_1, _, latency_1 = self.segment_nf(request)
+        data_1, _, latency_1 = self.segment_neurofibroma(request)
         proba = data_1["proba"]
         proba_meta = data_1["proba_meta_dict"]
         
         # Run thresholding task
-        data_2, _, latency_2 = self.threshold_nf(request, proba)
+        data_2, _, latency_2 = self.threshold_neurofibroma(request, proba)
         result_mask = data_2["pred"]
 
         # Prepare data for writing results

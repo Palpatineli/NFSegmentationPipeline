@@ -8,14 +8,13 @@ from typing import Callable, Dict, Sequence, Tuple, Union, List, Any
 from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor 
 from monailabel.interfaces.utils.transform import dump_data
 from monai.data.meta_tensor import MetaTensor
-from monai.transforms import (
-    LoadImaged, EnsureChannelFirstd, Orientationd, Spacingd, ToNumpyd
-)
-
 from monailabel.tasks.infer.basic_infer import BasicInferTask
 from monailabel.interfaces.tasks.infer_v2 import InferType
 from monailabel.transform.writer import Writer
 from monailabel.transform.post import Restored
+from monai.transforms import (
+    LoadImaged, EnsureChannelFirstd, Orientationd, Spacingd
+)
 from lib.transforms.transforms import ReorientToOriginald, AssembleAnatomyMaskd
 
 # Initialize logger for this module
@@ -24,12 +23,13 @@ logger = logging.getLogger(__name__)
 
 class InfererMRSegmentator(BasicInferTask):
     """
-    Inference class for MRSegmentator using nnUNetPredictor for multi-organ segmentation.
+    Inference class for MRSegmentator using 
     """
     
     def __init__(
         self,
         path: str,
+        checkpoint_file_name: str,
         network: nnUNetPredictor = None,
         type: InferType = InferType.SEGMENTATION,
         labels: Dict[str, int] = None,
@@ -44,7 +44,7 @@ class InfererMRSegmentator(BasicInferTask):
         **kwargs
     ):
         """
-        Initialize the inference task for MRSegmentator.
+        Initialize the inference task for MRSegmentator with nnUNetPredictor for multi-organ segmentation.
 
         Args:
             path (str): Path to the model weights.
@@ -55,9 +55,15 @@ class InfererMRSegmentator(BasicInferTask):
             target_spacing (Tuple[float]): Target voxel spacing for the model.
             orientation (str): Reorientation axcodes (default: "SPL").
             folds (List[int]): Cross-validation folds for nnUNet.
+            dilate_structure_size (int): Size for dilating structures in postprocessing.
+            dilate_iter_spine (int): Number of iterations for dilating spine structures.
+            dilate_iter_lung (int): Number of iterations for dilating lung structures.
             description (str): Task description.
             **kwargs: Additional parameters for the inference task.
         """
+        if path is None:
+            raise ValueError("Model path cannot be None")
+        
         super().__init__(
             path=path,
             network=network,
@@ -65,12 +71,13 @@ class InfererMRSegmentator(BasicInferTask):
             labels=labels,
             dimension=dimension,
             description=description,
-            input_key="image",  # Key for input image data
-            output_label_key="pred",  # Key for prediction output
-            output_json_key="result",  # Key for JSON result output
-            load_strict=False,  # Do not enforce strict loading
+            input_key="image",
+            output_label_key="pred",
+            output_json_key="result",
+            load_strict=False,
             **kwargs,
         )
+        self.checkpoint_file_name = checkpoint_file_name
         self.target_spacing = target_spacing
         self.orientation = orientation
         self.folds = folds
@@ -99,15 +106,15 @@ class InfererMRSegmentator(BasicInferTask):
             Sequence[Callable]: A list of preprocessing transformations.
         """
         transforms = [
-            LoadImaged(keys="image", meta_keys="meta_data_image", reader="ITKReader"),  # Load image data
-            EnsureChannelFirstd(keys="image"),  # Ensure the channels are first
-            Orientationd(keys="image", axcodes=self.orientation),  # Reorient to standard space
-            Spacingd(keys="image", pixdim=self.target_spacing, mode="bilinear"),  # Resample with target spacing
+            LoadImaged(keys="image", meta_keys="meta_data_image", reader="ITKReader"),
+            EnsureChannelFirstd(keys="image"),
+            Orientationd(keys="image", axcodes=self.orientation),
+            Spacingd(keys="image", pixdim=self.target_spacing, mode="bilinear"),
         ]
         return transforms
 
     @staticmethod
-    def get_meta_from_affine(affine_matrix):
+    def get_meta_from_affine(affine_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Extract spacing, origin, and direction from affine matrix.
 
@@ -138,12 +145,17 @@ class InfererMRSegmentator(BasicInferTask):
         self.network.initialize_from_trained_model_folder(
             self.path,
             use_folds=self.folds,
-            checkpoint_name="checkpoint_final.pth"
+            checkpoint_name=self.checkpoint_file_name
         )
         
+        if self.network is None:
+            raise RuntimeError("Network is not created, probably due to the non-existing checkpoint files.")
+        if self.input_key not in data:
+            raise KeyError(f"Required input key '{self.input_key}' is missing from the data.")
+        
         # Extract image data and affine matrix
-        image_data = data["image"].numpy().astype(np.float32)
-        affine_matrix = data["image"].affine
+        image_data = data[self.input_key].numpy().astype(np.float32)
+        affine_matrix = data[self.input_key].affine
         spacing, origin, direction = self.get_meta_from_affine(affine_matrix)
         
         # Prepare meta information for segmentation
@@ -176,7 +188,7 @@ class InfererMRSegmentator(BasicInferTask):
     
     def inverse_transforms(self, data=None) -> Union[None, Sequence[Callable]]:
         """
-        Do not perform any inverse transformations.
+        No inverse transforms required for this task.
         """
         return None
     
@@ -196,8 +208,8 @@ class InfererMRSegmentator(BasicInferTask):
                                  dilate_iter_spine=self.dilate_iter_spine,
                                  dilate_iter_lung=self.dilate_iter_lung
                                  ),
-            ReorientToOriginald(keys="pred", ref_image="image"),  # Reorient to original orientation
-            Restored(keys="pred", ref_image="image"),  # Restore the spatial orientation
+            ReorientToOriginald(keys="pred", ref_image="image"),
+            Restored(keys="pred", ref_image="image"),
         ]
 
     def __call__(self, request) -> Union[Dict, Tuple[str, Dict[str, Any]]]:

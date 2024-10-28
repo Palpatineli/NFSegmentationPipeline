@@ -22,7 +22,17 @@ class InfererMultiStagePipeline(BasicInferTask):
         description="Combines anatomy segmentation, neurofibroma segmentation, and thresholding into a multi-stage pipeline",
         **kwargs,
     ):
-        # Initialize the pipeline with segmentation task attributes
+        """
+        Initialize the multi-stage pipeline combining anatomy segmentation, neurofibroma segmentation, and thresholding.
+
+        Args:
+            task_anatomy_segmentation (InferTask): Task for anatomy segmentation.
+            task_neurofibroma_segmentation (InferTask): Task for neurofibroma segmentation.
+            task_thresholding (InferTask): Task for thresholding neurofibroma segmentation probability map.
+            type (InferType): Type of inference task (default is SEGMENTATION).
+            description (str): Description of the pipeline.
+            **kwargs: Additional keyword arguments.
+        """
         self.task_anatomy_segmentation = task_anatomy_segmentation
         self.task_neurofibroma_segmentation = task_neurofibroma_segmentation
         self.task_thresholding = task_thresholding
@@ -56,7 +66,7 @@ class InfererMultiStagePipeline(BasicInferTask):
     
     def post_transforms(self, data=None) -> Sequence[Callable]:
         """
-        No post-transforms are needed in this pipeline.
+        No posttransforms are needed in this pipeline.
         """
         return []
     
@@ -82,12 +92,31 @@ class InfererMultiStagePipeline(BasicInferTask):
         return latencies
     
     def segment_anatomy(self, request):
+        """
+        Execute the anatomy segmentation stage of the pipeline.
+
+        Args:
+            request (dict): Input request data.
+
+        Returns:
+            tuple: Anatomy segmentation result, metadata, and updated latencies.
+        """
         req = copy.deepcopy(request)
         req.update({"pipeline_mode": True})
         data, meta = self.task_anatomy_segmentation(req)
         return data, meta, self._latencies(meta)
     
     def segment_neurofibroma(self, request, anatomy):
+        """
+        Execute the neurofibroma segmentation stage of the pipeline.
+
+        Args:
+            request (dict): Input request data.
+            anatomy (ndarray): Anatomy segmentation output.
+
+        Returns:
+            tuple: Neurofibroma segmentation result, metadata, and updated latencies.
+        """
         req = copy.deepcopy(request)
         req.update({"anatomy": anatomy, "pipeline_mode": True})
         data, meta = self.task_neurofibroma_segmentation(req)
@@ -110,6 +139,15 @@ class InfererMultiStagePipeline(BasicInferTask):
         return data, meta, self._latencies(meta)
     
     def __call__(self, request):
+        """
+        Execute the entire multi-stage pipeline.
+
+        Args:
+            request (dict): Input request data.
+
+        Returns:
+            tuple: Result files and corresponding metadata.
+        """
         start = time.time()
 
         # Set the image path and device for the pipeline
