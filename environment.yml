@@ -200,7 +200,6 @@ dependencies:
       - python-dateutil==2.9.0.post0
       - python-dotenv==1.0.1
       - python-gdcm==3.0.24.1
-      - python-graphviz==0.20.3
       - python-multipart==0.0.9
       - pytorch-ignite==0.4.11
       - pytz==2024.2
