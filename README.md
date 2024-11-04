@@ -13,7 +13,8 @@ Neurofibromatosis Type 1 (NF1) is a genetic disorder marked by the presence of n
 
 This project introduces an anatomy-informed, fully-automated pipeline tailored for NF segmentation in WB-MRI. By leveraging anatomical context, the pipeline enhances segmentation accuracy, focusing on regions with a high likelihood of NF occurrence. The model’s integration within the 3D Slicer platform allows for clinical usability and facilitates future integration of interactive segmentation workflows for more flexible and efficient NF tumor volume delineation.
 
-The proposed pipeline for automated NF segmentation is depicted below:
+The proposed pipeline for automated NF segmentation is depicted below:  
+
 ![Pipeline Diagram](illustrations/pipeline.png)
 
 
@@ -67,10 +68,12 @@ The pipeline inference was tested on:
 1. **Clone the Repository**
    ```bash
    git clone https://github.com/IPMI-ICNS-UKE/NFSegmentationPipeline.git
+   ```
 
 2. **Set Up the Conda Environment**. Create the Conda environment using the `environment.yml` file:
    ```bash
    conda env create -f environment.yml -n nf_segmentation_pipeline
+   ```
 
 3. **Download and Set Up Model Weights**. Retrieve the model weights from [Zenodo](https://zenodo.org/records/14035133) and unzip them into the appropriate folder within the repository:
    ```bash
@@ -78,6 +81,7 @@ The pipeline inference was tested on:
    wget https://zenodo.org/record/14035133/files/model.zip
    unzip model.zip
    rm model.zip
+   ```
 
 #### Client-Side
 To perform neurofibroma segmentation, please, use 3D Slicer. It integrates well with the MONAI Label plugin, allowing to interact seamlessly with the segmentation pipeline.
@@ -91,8 +95,138 @@ To perform neurofibroma segmentation, please, use 3D Slicer. It integrates well 
 
 ### Server-Side
 
+1. **Activate the Conda Environment**
+   First, activate the Conda environment created during setup:
+   ```bash
+   conda activate nf_segmentation_pipeline
+   ```
+   
+1. **Launch the MONAI Label Server**. From the root folder of the repository, start the MONAI Label server by running:
+   ```bash
+   bash launch_nf_segmentation_server.sh
+   ```
+
+2. **Configurable Options**. The `launch_nf_segmentation_server.sh` script can be customized based on your configuration needs:
+   - **CUDA_VISIBLE_DEVICES**: Set the integer value corresponding to the NVIDIA GPU you want to use for inference.
+   - **Batch Size** (`--conf batch_size`): Controls the batch size for sliding window inference. Minimal batch size is 1 (recommended for GPUs with less than 12 GB memory).
+   - **Resample in 2D** (`--conf resample_only_in_2d`): Set to `True` if the slice thickness is larger than 8 mm to perform all resampling operations in 2D in the isotropic plane.
+   - **Port** (`--port 8000`):  By default, the MONAI Label server runs on port 8000. If it is occupied, specify a different port.
+
+   For more details about the MONAI Label command-line options, see the [MONAI Label documentation](https://github.com/Project-MONAI/MONAILabel/tree/main?tab=readme-ov-file#step-5-start-monai-label-server-and-start-annotating). 
+
 ### Client-Side
 
+The **3D Slicer** application serves as the client for performing neurofibroma segmentation. It can connect to the MONAI Label server either on the same machine or a remote machine accessible over the network.
+
+1. **Launch 3D Slicer**.  
+   Open 3D Slicer on the client machine.
+
+2. **Connect to the MONAI Label Server**.  
+   Go to the MONAI Label extension and select the appropriate MONAI Label server from the dropdown menu.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_2.png" alt="step_2">
+   </p>
+   </details>
+
+3. **Upload MRI Data**.  
+   Drag and drop a whole-body MRI file into 3D Slicer and upload it to the server.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_3.png" alt="step_3">
+   </p>
+   </details>
+
+4. **Choose NF Segmentation Mode**.  
+   Select a Neurofibroma segmentation mode from the dropdown menu - either **Single-Stage** or **Multi-Stage** — and start the segmentation process.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_4.png" alt="step_4">
+   </p>
+   </details>
+
+   Depending on the hardware and mode selected, the segmentation process may take 10–120 seconds. The resulting segmentation of neurofibromas will be depcited in green.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_4_2.png" alt="step_4_2">
+   </p>
+   </details>
+
+5. **Post-Processing Options**.  
+   After segmentation, you can apply post-processing:
+   - **Confidence-Based Thresholding**: Choose low (0.25), medium (0.5), or high (0.75) confidence thresholds to filter results.
+   - **Tumor Candidate Classification**: Uses radiomic feature extraction and classification based on anatomical localization. This process may take more than 2 minutes, depending on the number of tumor candidates and CPU capabilities.
+   <details>
+   <summary>Illustration of post-processing effects (Click to Expand)</summary>
+
+   | Low Confidence Filtering | Medium Confidence Filtering | High Confidence Filtering | Tumor Candidate Classification |
+   |--------------------------|-----------------------------|---------------------------|--------------------------------|
+   | ![Low Confidence](illustrations/step_5_low_confidence.png) | ![Medium Confidence](illustrations/step_5_medium_confidence.png) | ![High Confidence](illustrations/step_5_high_confidence.png) | ![Tumor Candidate Classification](illustrations/step_5_ttc.png) |
+
+   </details>
+
+6. **Anatomy Segmentation**.  
+   The **Anatomy Segmentation** mode uses MRSegmentator to generate an anatomy segmentation mask. This mode is used only for demo purposes.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_6.png" alt="step_6">
+   </p>
+   </details>
+
+7. **Manual Corrections in Segment Editor**.  
+   Once NF segmentation is complete, results can be manually adjusted using the Segment Editor. [Learn more about Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html).
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_7.png" alt="step_7">
+   </p>
+   </details>
+
+8. **Submit Results**.  
+   Submit the segmentation mask back to the server.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_8.png" alt="step_8">
+   </p>
+   </details>
+
+9. **Export Results**.  
+   Export the segmentation mask to your local machine in a desired file format.
+   <details>
+   <summary>Click to see the illustration</summary>
+   <p>
+     <img src="illustrations/step_9.png" alt="step_">
+   </p>
+   </details>
+   
+<details>
+<summary>Approximate Inference Times (Click to Expand)</summary>
+
+Approximate inference time on a machine with an AMD Ryzen 9 7950X3D CPU and an NVIDIA GeForce RTX 4090 GPU (batch size = 1):
+- **Single-Stage NF Segmentation**: 10 seconds
+- **Multi-Stage NF Segmentation (with Anatomy)**: 60 seconds
+- **Post-Processing (Low/Medium/High Confidence Filter)**: 1 second
+- **Tumor Candidate Classification (Needs Anatomy)**: ~120 seconds per patient with approximately 600 tumor candidates
+- **Anatomy Segmentation**: 40 seconds
+
+</details>   
+   
+   
+
+
+
+
+
+
+
+
+   
 ---
 
 ## Contact
