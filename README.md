@@ -1,6 +1,6 @@
 # Neurofibroma Segmentation in Whole-Body MRI
 
-This is the official implementation of the segmentation pipeline from the paper "Anatomy-Informed Deep Learning and Radiomics for Automated Neurofibroma Segmentation in WHole-Body MRI".
+This is the official implementation of the segmentation pipeline from the paper "Anatomy-Informed Deep Learning and Radiomics for Automated Neurofibroma Segmentation in Whole-Body MRI".
 
 Authors: Georgii Kolokolnikov, Marie-Lena Schmallhofer, Lennart Well, Inka Ristow, and René Werner.
 
@@ -41,12 +41,49 @@ The pipeline offers multiple segmentation modes:
 
 ## Installation
 
-### 1. Hardware and Software Requirements
+### 1. Requirements
+#### Hardware
+The provided code serves as the backend segmentation logic for the NF segmentation pipeline and should be launched as a MONAI Label server. Ideally, it should be run on a machine equipped with a GPU to enable faster inference. The minimal GPU memory requirement for running the pipeline in a sliding window mode with a batch size of 1 is 8 GB.
 
-### 2. Environment Setup
+<details>
+<summary>Tested Hardware Setup (Click to Expand)</summary>
 
-### 3. Getting Model Weights
+The pipeline inference was tested on:
+- **Machine 1**: 64-bit Ubuntu 22.04.5 LTS with an NVIDIA RTX A6000 GPU.
+- **Machine 2**: 64-bit Ubuntu 22.04.4 LTS with an NVIDIA GeForce RTX 4090 GPU.
 
+</details>
+
+#### Software
+- **Python**: Version 3.9
+- **MONAI Label**: The backend logic for segmentation is based on and follows the structure of the [Radiology Sample App from MONAI Label](https://github.com/Project-MONAI/MONAILabel/tree/main/sample-apps/radiology). The MONAI framework is used extensively for the implementation.
+- **MRSegmentator**: The pipeline relies on [MRSegmentator](https://github.com/hhaentze/MRSegmentator) for anatomical segmentation and uses pre-trained weights from MRSegmentator as part of the workflow.
+- **nnU-Net**: We use [nnU-Net](https://github.com/MIC-DKFZ/nnUNet) code for parts of the inference logic.
+- **PyRadiomics**: [PyRadiomics](https://github.com/AIM-Harvard/pyradiomics) is used for extracting radiomic features in the tumor candidate classification stage.
+- The complete list of dependencies required for the pipeline is provided in the `environment.yml` file. 
+
+### 2. Setting Things Up
+#### Server-Side
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/IPMI-ICNS-UKE/NFSegmentationPipeline.git
+
+2. **Set Up the Conda Environment**. Create the Conda environment using the `environment.yml` file:
+   ```bash
+   conda env create -f environment.yml -n nf_segmentation_pipeline
+
+3. **Download and Set Up Model Weights**. Retrieve the model weights from [Zenodo](https://zenodo.org/records/14035133) and unzip them into the appropriate folder within the repository:
+   ```bash
+   cd NFSegmentationPipeline/nf_segmentation_app/
+   wget https://zenodo.org/record/14035133/files/model.zip
+   unzip model.zip
+   rm model.zip
+
+#### Client-Side
+To perform neurofibroma segmentation, please, use 3D Slicer. It integrates well with the MONAI Label plugin, allowing to interact seamlessly with the segmentation pipeline.
+
+1. **Install 3D Slicer**. Download and install 3D Slicer from [here](https://www.slicer.org/).
+2. **Install the MONAI Label Plugin**. After installing 3D Slicer, add the MONAI Label extension to connect to the segmentation server. Detailed installation instructions are available in the [MONAI Label Plugin for 3D Slicer documentation](https://github.com/Project-MONAI/MONAILabel/tree/main/plugins/slicer).
 
 ---
 
