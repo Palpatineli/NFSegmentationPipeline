@@ -11,7 +11,7 @@ Authors: Georgii Kolokolnikov, Marie-Lena Schmallhofer, Lennart Well, Inka Risto
 ### 1. Motivation
 Neurofibromatosis Type 1 (NF1) is a genetic disorder marked by the presence of neurofibromas, benign tumors that can develop throughout the body, often in complex and variable patterns. Accurately segmenting these tumors from whole-body MRI (WB-MRI) scans is essential for clinical management of NF1 patients, including monitoring tumor burden and potential malignant transformation. Traditional methods for neurofibroma segmentation rely on manual annotation, which is time-consuming and introduces variability across clinical evaluations. Additionally, existing fully-automated approaches have shown limited success, especially in handling the diverse morphology and anatomical distribution of neurofibromas (NFs) across body regions​.
 
-This project introduces an anatomy-informed, fully-automated pipeline tailored for NF segmentation in WB-MRI. By leveraging anatomical context, the pipeline enhances segmentation accuracy, focusing on regions with a high likelihood of NF occurrence. The model’s integration within the 3D Slicer platform allows for clinical usability and facilitates future integration of interactive segmentation workflows for more flexible and efficient NF tumor volume delineation.
+This project introduces an anatomy-informed, fully-automated pipeline tailored for NF segmentation in T2-weighted fat-suppressed WB-MRI. By leveraging anatomical context, the pipeline enhances segmentation accuracy, focusing on regions with a high likelihood of NF occurrence. The model’s integration within the 3D Slicer platform allows for clinical usability and facilitates future integration of interactive segmentation workflows for more flexible and efficient NF tumor volume delineation.
 
 The proposed pipeline for automated NF segmentation is depicted below:  
 
@@ -45,15 +45,6 @@ The pipeline offers multiple segmentation modes:
 ### 1. Requirements
 #### Hardware
 The provided code serves as the backend segmentation logic for the NF segmentation pipeline and should be launched as a MONAI Label server. Ideally, it should be run on a machine equipped with a GPU to enable faster inference. The minimal GPU memory requirement for running the pipeline in a sliding window mode with a batch size of 1 is 8 GB.
-
-<details>
-<summary>Tested Hardware Setup (Click to Expand)</summary>
-
-The pipeline inference was tested on:
-- **Machine 1**: 64-bit Ubuntu 22.04.5 LTS with an NVIDIA RTX A6000 GPU.
-- **Machine 2**: 64-bit Ubuntu 22.04.4 LTS with an NVIDIA GeForce RTX 4090 GPU.
-
-</details>
 
 #### Software
 - **Python**: Version 3.9
@@ -205,28 +196,34 @@ The **3D Slicer** application serves as the client for performing neurofibroma s
    </p>
    </details>
    
-<details>
-<summary>Approximate Inference Times (Click to Expand)</summary>
+---
+## Tested Configuration
 
-Approximate inference time on a machine with an AMD Ryzen 9 7950X3D CPU and an NVIDIA GeForce RTX 4090 GPU (batch size = 1):
+### Tested Data
+The pipeline was tested on **T2-weighted fat-suppressed whole-body MRI images** from:
+- **Siemens Magnetom** (Siemens Healthineers, Erlangen, Germany)
+- **Philips Ingenia** (Best, The Netherlands)
+
+The images were acquired at 1.5T and 3T field strengths and stored in **NIFTI format**. These were anisotropic coronal whole-body MRIs with high resolution in the coronal plane, with an average voxel spacing of **0.625 mm x 0.625 mm x 7.8 mm**.
+
+### Tested Hardware Setup
+The pipeline inference was tested on:
+- **Machine 1**: 64-bit Ubuntu 22.04.5 LTS with an NVIDIA RTX A6000 GPU.
+- **Machine 2**: 64-bit Ubuntu 22.04.4 LTS with an AMD Ryzen 9 7950X3D CPU and an NVIDIA GeForce RTX 4090 GPU.
+
+### Approximate Inference Times
+Approximate inference time on the **Machine 2** and batch size = 2:
 - **Single-Stage NF Segmentation**: 10 seconds
 - **Multi-Stage NF Segmentation (with Anatomy)**: 60 seconds
 - **Post-Processing (Low/Medium/High Confidence Filter)**: 1 second
 - **Tumor Candidate Classification (Needs Anatomy)**: ~120 seconds per patient with approximately 600 tumor candidates
 - **Anatomy Segmentation**: 40 seconds
 
-</details>   
-   
-   
-
-
-
-
-
-
-
-
-   
 ---
 
 ## Contact
+For questions, feedback, or collaboration inquiries, please contact:
+- **[Georgii Kolokolnikov](mailto:g.kolokolnikov@uke.de)**, PhD student at the University Medical Center Hamburg-Eppendorf (UKE)
+- [Institute for Applied Medical Informatics](https://www.uke.de/english/departments-institutes/institutes/applied-medical-informatics/index.html)
+
+For technical issues or feature requests, please open an issue in this repository’s [Issues section](https://github.com/IPMI-ICNS-UKE/NFSegmentationPipeline/issues).
