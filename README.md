@@ -95,53 +95,53 @@ The pipeline offers multiple modes:
 
 1. Launch 3D Slicer and connect to the MONAI Label server. <details> <summary>Expand for visual instructions</summary>
    <p>
-     <img src="illustrations/step_2.png" alt="step_2">
+     <img src="illustrations/step_1.png" alt="step_1">
    </p>
    </details>
 2. Upload MRI data to the MONAI Label server. <details> <summary>Expand for visual instructions</summary>
    <p>
-     <img src="illustrations/step_3.png" alt="step_3">
+     <img src="illustrations/step_2.png" alt="step_2">
    </p>
    </details>
 3. Select NF segmentation mode (Single-Stage or Multi-Stage). <details> <summary>Expand for visual instructions</summary>
    <p>
-     <img src="illustrations/step_4.png" alt="step_4">
+     <img src="illustrations/step_3_1.png" alt="step_3_1">
    </p>
    </details>
 
    <details> <summary>Expand to see an example of the NF segmentation</summary>
    <p>
-     <img src="illustrations/step_4_2.png" alt="step_4_2">
+     <img src="illustrations/step_3_2.png" alt="step_3_2">
    </p>
    </details>
 4. Apply post-processing (confidence filtering or tumor candidate classification). <details> <summary>Expand for visual comparison of post-processing effects</summary>
 
    | Low Confidence Filtering | Medium Confidence Filtering | High Confidence Filtering | Tumor Candidate Classification |
    |--------------------------|-----------------------------|---------------------------|--------------------------------|
-   | ![Low Confidence](illustrations/step_5_low_confidence.png) | ![Medium Confidence](illustrations/step_5_medium_confidence.png) | ![High Confidence](illustrations/step_5_high_confidence.png) | ![Tumor Candidate Classification](illustrations/step_5_ttc.png) |
+   | ![Low Confidence](illustrations/step_4_low_confidence.png) | ![Medium Confidence](illustrations/step_4_medium_confidence.png) | ![High Confidence](illustrations/step_4_high_confidence.png) | ![Tumor Candidate Classification](illustrations/step_4_ttc.png) |
    </details>
 
 5. Optional: Apply Anatomy Segmentation to generate and show an anatomy segmentation mask. <details> <summary>Expand to see an example of the processed anatomy segmentation</summary>
    <p>
-     <img src="illustrations/step_6.png" alt="step_6">
+     <img src="illustrations/step_5.png" alt="step_5">
    </p>
    </details>
    
 6. Optional: Use Segment Editor for manual adjustments. [Learn more about Segment Editor](https://slicer.readthedocs.io/en/latest/user_guide/modules/segmenteditor.html). <details> <summary>Expand for visual instructions</summary>
    <p>
-     <img src="illustrations/step_7.png" alt="step_7">
+     <img src="illustrations/step_6.png" alt="step_6">
    </p>
    </details>
 
 7. Submit the final version of the segmentation mask to the MONAI Label server. <details> <summary>Expand for visual instructions</summary>
    <p>
-     <img src="illustrations/step_8.png" alt="step_8">
+     <img src="illustrations/step_7.png" alt="step_7">
    </p>
    </details>
 
 8. Save the final version of the segmentation mask to the local machine. <details> <summary>Expand for visual instructions</summary>
    <p>
-     <img src="illustrations/step_9.png" alt="step_">
+     <img src="illustrations/step_8.png" alt="step_8">
    </p>
    </details>
 
