@@ -2,7 +2,7 @@
 
 **Official Implementation of**: *Anatomy-Informed Deep Learning and Radiomics for Automated Neurofibroma Segmentation in Whole-Body MRI*.  
 
-**Authors**: Georgii Kolokolnikov, Marie-Lena Schmallhofer, Lennart Well, Inka Ristow, and René Werner.
+**Authors**: Georgii Kolokolnikov, Marie-Lena Schmallhofer, Lennart Well, Said Farschtschi, Victor-Felix Mautner, Inka Ristow, and René Werner.
 
 ---
 
