@@ -19,8 +19,9 @@
 
 ![Pipeline Diagram](illustrations/pipeline.png)
 
-
 ### Functionality
+🎬 [Click here](https://zenodo.org/records/14133129/preview/NF_segmentation_demo.mp4?include_deleted=0) to watch a video demonstration of the NF segmentation pipeline.
+
 The pipeline offers multiple modes:
 - **Single-Stage NF Segmentation**: Fast segmentation with a single 3D anisotropic U-Net.
 - **Multi-Stage NF Segmentation**: Anatomy-informed segmentation with an ensemble of 3D anisotropic U-Nets.<details>
