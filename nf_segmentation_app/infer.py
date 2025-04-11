@@ -1,3 +1,4 @@
+from shutil import move
 from pathlib import Path
 from argparse import ArgumentParser, ArgumentTypeError
 from lib.infers.inferer_multi_stage_pipeline import InfererMultiStagePipeline
@@ -34,7 +35,7 @@ task = InfererMultiStagePipeline(
 def main(image_path: Path):
     print(f'[Infer] {image_path.name}')
     res = task({'image': str(image_path)})
-    Path(res[0]['final']).rename(image_path.parent.joinpath(image_path.stem + '_label.nii'))
+    move(res[0]['final'], str(image_path.parent.joinpath(image_path.stem + '_label.nii.gz')))
 
 def _exists(path) -> Path:
     path = Path(path)
