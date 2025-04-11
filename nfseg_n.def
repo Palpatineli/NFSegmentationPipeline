@@ -1,0 +1,28 @@
+BootStrap: docker
+From: pytorch/pytorch:2.4.1-cuda11.8-cudnn9-runtime
+
+%environment
+    export nnUNet_raw="/mnt/data/nnUNet_raw"
+    export nnUNet_preprocessed="/mnt/data/nnUNet_preprocessed"
+    export nnUNet_results="/mnt/data/nnUNet_results"
+    export CUDA_VISIBLE_DEVICES="0" 
+    
+%post
+    apt-get update && apt-get install -y git
+    apt-get install build-essential wget unzip -y
+    mkdir -p /app
+    chmod 777 /app
+    cd /app
+    git clone https://github.com/Palpatineli/NFSegmentationPipeline.git
+    cd /app/NFSegmentationPipeline
+    pip install -r requirement.txt
+    cd /app
+    git clone https://github.com/AIM-Harvard/pyradiomics.git
+    cd /app/pyradiomics
+    pip install .
+    cd /app/NFSegmentationPipeline/nf_segmentation_app/
+    wget https://zenodo.org/record/14035133/files/model.zip
+    unzip model.zip && rm model.zip
+
+%startscript
+    python -u /app/main.py
