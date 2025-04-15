@@ -1,3 +1,4 @@
+import os
 from shutil import move
 from pathlib import Path
 from argparse import ArgumentParser, ArgumentTypeError
@@ -6,8 +7,7 @@ from lib.configs.config_3d_anisotropic_anatomic_unet import Config3DAnisotropicA
 from lib.configs.config_mrsegmentator import ConfigMRSegmentator
 from lib.configs.config_probability_thresholding import ConfigProbabilityThresholding
 
-
-model_dir = '/home/palpatine/alpaca/NFSegmentationPipeline/nf_segmentation_app/model'
+model_dir = os.environ.get('MODEL_DIR', os.path.expanduser('~/NFSegmentationPipeline/nf_segmentation_app/model'))
 model_conf = {'models': 'all', 'batch_size': '2', 'resample_only_in_2d': 'True'}
 
 configs = {
