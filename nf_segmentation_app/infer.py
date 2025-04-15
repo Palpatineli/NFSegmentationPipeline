@@ -19,7 +19,7 @@ configs = {
 components = {}
 
 for n, task_config in configs.items():
-    task_config.init(n, model_dir, model_conf, None)
+    task_config.init(n, model_dir, model_conf, None, resample_only_in_2d=True)
     c = task_config.infer()
     c = c if isinstance(c, dict) else {n: c}
     for k, v in c.items():
